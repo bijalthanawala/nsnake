@@ -11,8 +11,10 @@
 
 /* Macros / Defnitions
  ************************/
-#define DEFAULT_INIT_LENGTH 5
-#define DEFAULT_SNAKE_CHAR  'S' 
+#define DEFAULT_INIT_LENGTH 20 
+#define DEFAULT_DRAW_CHAR  'S' 
+#define DEFAULT_ERASE_CHAR  ' ' 
+#define DEFAULT_TRACE_CHAR '.'
 
 #define ASCII_ESC	  27
 #define ASCII_ARROW_UP    259
@@ -20,7 +22,9 @@
 #define ASCII_ARROW_LEFT  260
 #define ASCII_ARROW_RIGHT 261
 
-#define DEFAULT_DELAY HALF_A_SECOND
+//#define DEFAULT_DELAY (ONE_SECOND * 1)
+//#define DEFAULT_DELAY HALF_A_SECOND
+#define DEFAULT_DELAY QUARTER_SECOND
 #define MIN_THRESHOLD_DELAY ( 100 * 1000 )
 #define ONE_SECOND    (1000 * 1000)
 #define HALF_A_SECOND (ONE_SECOND / 2)
@@ -53,6 +57,9 @@ typedef struct snake_segment {
 
 typedef struct snake {
 	int seg_count;
+	chtype ch_draw;
+	chtype ch_erase;
+	bool b_show_segcount;
 	P_SSEG seg_head;
 	P_SSEG seg_tail; 
 } SNAKE , *P_SNAKE;
@@ -67,7 +74,7 @@ WINDOW* ncurses_init();
 void ncurses_uninit();
 
 P_SNAKE snake_init();
-void snake_draw_init(WINDOW *w, P_SSEG pseg);
+void snake_draw_init(WINDOW *w, P_SNAKE psnake);
 bool snake_move(WINDOW *w, P_SNAKE psnake);
 bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir);
 
@@ -119,6 +126,14 @@ bool process_char(int ch, WINDOW *w, P_SETTINGS psettings, P_SNAKE psnake)
 				psettings->delay -= QUARTER_SECOND;
 			}
 			break;	
+		case 't':
+			psnake->ch_erase = (psnake->ch_erase == DEFAULT_ERASE_CHAR) ? 
+                                           DEFAULT_TRACE_CHAR :
+				           DEFAULT_ERASE_CHAR;
+			break;
+		case 's':
+			psnake->b_show_segcount = psnake->b_show_segcount ? false : true; 
+			break;
 		case ASCII_ARROW_LEFT:
 			snake_steer(w, psnake, DIR_LEFT);
 			break;
@@ -245,6 +260,9 @@ bool snake_move(WINDOW *w, P_SNAKE psnake)
 {
 	P_SSEG head = psnake->seg_head;
 	P_SSEG tail = psnake->seg_tail;
+        chtype ch = psnake->b_show_segcount ? 
+                    (psnake->seg_count + '0') :
+	            psnake->ch_draw;	
 
 	seg_update_headxy(head);
 	head->length++;
@@ -252,7 +270,7 @@ bool snake_move(WINDOW *w, P_SNAKE psnake)
 		mvwaddch(w, 
                        	head->coord_start.y, 
                         head->coord_start.x, 
-			DEFAULT_SNAKE_CHAR);
+			ch);
 	}
 	else
 	{
@@ -260,11 +278,12 @@ bool snake_move(WINDOW *w, P_SNAKE psnake)
 		return false;
 	}
 
-	//mvwinsch(w, tail->coord_end.y, tail->coord_end.x, '.');
-        mvwdelch(w, tail->coord_end.y, tail->coord_end.x);	
+	mvwaddch(w, tail->coord_end.y, tail->coord_end.x, psnake->ch_erase);
+        //mvwdelch(w, tail->coord_end.y, tail->coord_end.x);	
 	tail->length--;
 	if ( tail->length == 0 ) {
 		psnake->seg_tail = tail->previous;	
+		psnake->seg_count--;
 	} 
 	else {
 		seg_update_tailxy(tail);
@@ -304,27 +323,33 @@ P_SNAKE snake_init(WINDOW *w)
 	p_initseg->coord_end.x = w->_maxx;
 	p_initseg->coord_end.y = w->_maxy;
 
-	/* Insert initial segment into the snake */
+	/* Initialize snake */
 	psnake->seg_count = 1;
+	psnake->ch_draw = DEFAULT_DRAW_CHAR;
+	psnake->ch_erase = DEFAULT_ERASE_CHAR;
+        psnake->b_show_segcount = false;
+
+	/* Insert initial segment into the snake */
 	psnake->seg_head = p_initseg;
 	psnake->seg_tail = p_initseg;
 
 	/* Draw the initial snake */
-	snake_draw_init(w, p_initseg);
+	snake_draw_init(w, psnake);
 
 	return psnake;
 }
 
-void snake_draw_init(WINDOW *w, P_SSEG pseg)
+void snake_draw_init(WINDOW *w, P_SNAKE psnake)
 {
 	int i;
+	P_SSEG pseg = psnake->seg_head; 
 	NCURSES_SIZE_T y = pseg->coord_start.y;
 	NCURSES_SIZE_T x = pseg->coord_start.x;
 
 	//mvwprintw(w, 1,1, "y=%d x=%d maxy=%d maxx=%d", y, x, w->_maxy, w->_maxx);
 
 	for(i=0; i < pseg->length; i++, y++) {
-		mvwinsch(w, y, x, DEFAULT_SNAKE_CHAR);
+		mvwaddch(w, y, x, psnake->ch_draw);
 	}
 }
 
