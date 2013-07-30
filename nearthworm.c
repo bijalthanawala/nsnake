@@ -5,16 +5,18 @@
 #include <stdbool.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <ncurses.h>
 
 
 /* Macros / Defnitions
  ************************/
-#define DEFAULT_INIT_LENGTH 20 
+#define DEFAULT_INIT_LENGTH 1 
 #define DEFAULT_DRAW_CHAR  'S' 
 #define DEFAULT_ERASE_CHAR  ' ' 
 #define DEFAULT_TRACE_CHAR '.'
+#define DEFAULT_FOOD_CHAR '@' 
 
 #define ASCII_ESC	  27
 #define ASCII_ARROW_UP    259
@@ -22,13 +24,12 @@
 #define ASCII_ARROW_LEFT  260
 #define ASCII_ARROW_RIGHT 261
 
-//#define DEFAULT_DELAY (ONE_SECOND * 1)
-//#define DEFAULT_DELAY HALF_A_SECOND
-#define DEFAULT_DELAY QUARTER_SECOND
-#define MIN_THRESHOLD_DELAY ( 100 * 1000 )
-#define ONE_SECOND    (1000 * 1000)
-#define HALF_A_SECOND (ONE_SECOND / 2)
-#define QUARTER_SECOND (ONE_SECOND / 4)
+#define DEFAULT_DELAY (ONE_MILLI_SECOND * 100)
+#define MIN_THRESHOLD_DELAY ( ONE_MILLI_SECOND * 20 )
+#define ONE_MILLI_SECOND (1000)
+
+#define SPEED_INC (-10) 
+#define SPEED_DEC (+10) 
 
 /* enums
  ***********/
@@ -45,7 +46,7 @@ typedef struct coord {
         NCURSES_SIZE_T x;	
         NCURSES_SIZE_T y;	
 } COORD, *P_COORD;
-	
+
 typedef struct snake_segment {
 	struct snake_segment *next;
 	struct snake_segment *previous;
@@ -60,6 +61,7 @@ typedef struct snake {
 	chtype ch_draw;
 	chtype ch_erase;
 	bool b_show_segcount;
+	bool b_show_length;
 	P_SSEG seg_head;
 	P_SSEG seg_tail; 
 } SNAKE , *P_SNAKE;
@@ -68,6 +70,11 @@ typedef struct settings {
 	int delay;
 } SETTINGS, *P_SETTINGS;
 
+typedef struct food {
+	bool b_eaten;
+	COORD coord;
+} FOOD, *P_FOOD; 
+
 /* Prototypes
  ****************/
 WINDOW* ncurses_init();
@@ -75,10 +82,12 @@ void ncurses_uninit();
 
 P_SNAKE snake_init();
 void snake_draw_init(WINDOW *w, P_SNAKE psnake);
-bool snake_move(WINDOW *w, P_SNAKE psnake);
+bool snake_move(WINDOW *w, P_SNAKE psnake, P_FOOD pfood);
 bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir);
 
 bool process_char(int ch, WINDOW *w, P_SETTINGS psettings, P_SNAKE psnake);
+
+bool place_food(WINDOW *w , P_FOOD pfood);
 
 /* Routines
  *************/
@@ -86,6 +95,7 @@ int main()
 {
 	WINDOW *w = NULL;
 	P_SNAKE psnake = NULL;
+	FOOD food;
 	int ch = 0;
 	SETTINGS settings;
 
@@ -100,12 +110,18 @@ int main()
 		return 1;
 	}
 
+	food.b_eaten = true;
+
 	while ( !(ch == 'x' || 
                   ch == 'q' ||
                   ch == ASCII_ESC 
                  )) {
+
+		if(food.b_eaten) {
+			place_food(w, &food);
+		}
 		usleep(settings.delay);
-		snake_move(w, psnake);
+		snake_move(w, psnake, &food);
 		ch = tolower(getch());
 		process_char(ch, w, &settings, psnake);
 	}
@@ -114,16 +130,30 @@ int main()
 	return 0;
 }
 
+bool place_food(WINDOW *w , P_FOOD pfood)
+{
+	long int rnd = 0;
+	P_COORD coord = &pfood->coord;
+
+	pfood->b_eaten = false;
+
+	srandom(time(NULL));		
+	coord->y = random() % w->_maxy;  
+	coord->x = random() % w->_maxx;  
+
+	mvwaddch(w, coord->y, coord->x, DEFAULT_FOOD_CHAR);
+}
+
 bool process_char(int ch, WINDOW *w, P_SETTINGS psettings, P_SNAKE psnake)
 {
 	switch(ch) 
 	{
 		case '-':	
-			psettings->delay += QUARTER_SECOND;
+			psettings->delay += SPEED_DEC;
 			break;	
 		case '+':
-			if ( psettings->delay - QUARTER_SECOND >= MIN_THRESHOLD_DELAY) {
-				psettings->delay -= QUARTER_SECOND;
+			if ( (psettings->delay + SPEED_INC) >= MIN_THRESHOLD_DELAY) {
+				psettings->delay += SPEED_INC;
 			}
 			break;	
 		case 't':
@@ -133,6 +163,9 @@ bool process_char(int ch, WINDOW *w, P_SETTINGS psettings, P_SNAKE psnake)
 			break;
 		case 's':
 			psnake->b_show_segcount = psnake->b_show_segcount ? false : true; 
+			break;
+		case 'l':
+			psnake->b_show_length = psnake->b_show_length ? false : true; 
 			break;
 		case ASCII_ARROW_LEFT:
 			snake_steer(w, psnake, DIR_LEFT);
@@ -250,19 +283,33 @@ bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir)
 	head->previous = pseg;
 
 	/* Add new segment to the snake's front */
-	psnake->seg_count++;
 	psnake->seg_head = pseg;
+
+	psnake->seg_count++;
 
 	return true;
 }
 
-bool snake_move(WINDOW *w, P_SNAKE psnake)
+bool eat_food(P_SNAKE psnake, P_FOOD pfood)
+{
+	P_COORD coord_head = &psnake->seg_head->coord_start;
+	P_COORD coord_food = &pfood->coord;
+
+	if(coord_head->y == coord_food->y &&
+	   coord_head->x == coord_food->x) {
+		pfood->b_eaten = true;
+		return true;
+	}
+
+	return false;
+}
+
+bool snake_move(WINDOW *w, P_SNAKE psnake, P_FOOD pfood)
 {
 	P_SSEG head = psnake->seg_head;
 	P_SSEG tail = psnake->seg_tail;
-        chtype ch = psnake->b_show_segcount ? 
-                    (psnake->seg_count + '0') :
-	            psnake->ch_draw;	
+        chtype ch = psnake->b_show_segcount ?  (psnake->seg_count + '0') :
+		    	psnake->b_show_length ? head->length + '0'  : psnake->ch_draw;	
 
 	seg_update_headxy(head);
 	head->length++;
@@ -278,8 +325,11 @@ bool snake_move(WINDOW *w, P_SNAKE psnake)
 		return false;
 	}
 
+	if(eat_food(psnake, pfood)) {
+		return true;
+	}
+
 	mvwaddch(w, tail->coord_end.y, tail->coord_end.x, psnake->ch_erase);
-        //mvwdelch(w, tail->coord_end.y, tail->coord_end.x);	
 	tail->length--;
 	if ( tail->length == 0 ) {
 		psnake->seg_tail = tail->previous;	
