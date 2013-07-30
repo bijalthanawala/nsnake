@@ -223,12 +223,13 @@ bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir)
 	/* Setup the new segment in the expected direction */
 	pseg->previous = NULL;
 	pseg->next = psnake->seg_head;
-	pseg->length = 1;	
+	pseg->length = 0;	
 	pseg->dir = dir;
 	pseg->coord_start.x = head->coord_start.x;
 	pseg->coord_start.y = head->coord_start.y; 
 	pseg->coord_end.x = head->coord_start.x;
 	pseg->coord_end.y = head->coord_start.y;
+	seg_update_tailxy(pseg);
 
 	/* Fix snake's old head segment */
 	head->previous = pseg;
