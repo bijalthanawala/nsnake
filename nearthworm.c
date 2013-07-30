@@ -121,7 +121,9 @@ int main()
 			place_food(w, &food);
 		}
 		usleep(settings.delay);
-		snake_move(w, psnake, &food);
+		if(!snake_move(w, psnake, &food)) {
+			break;
+		}
 		ch = tolower(getch());
 		process_char(ch, w, &settings, psnake);
 	}
@@ -140,6 +142,8 @@ bool place_food(WINDOW *w , P_FOOD pfood)
 	srandom(time(NULL));		
 	coord->y = random() % w->_maxy;  
 	coord->x = random() % w->_maxx;  
+
+	/* TODO: Detect and correct if food has landed on any part of snake itself */
 
 	mvwaddch(w, coord->y, coord->x, DEFAULT_FOOD_CHAR);
 }
@@ -218,6 +222,8 @@ bool is_valid_coord(WINDOW *w, P_COORD pcoord)
 	   pcoord->y <= w->_maxy) { 
 		return true;
 	}
+	
+	/* TODO: Detect if head touched any part of snake itself */
 
 	return false;
 }
