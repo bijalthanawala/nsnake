@@ -89,6 +89,8 @@ bool process_char(int ch, WINDOW *w, P_SETTINGS psettings, P_SNAKE psnake);
 
 bool place_food(WINDOW *w , P_FOOD pfood);
 
+void free_snake(P_SNAKE psnake);
+
 /* Routines
  *************/
 int main()
@@ -128,6 +130,7 @@ int main()
 		process_char(ch, w, &settings, psnake);
 	}
 	
+	free_snake(psnake);
 	ncurses_uninit();
 	return 0;
 }
@@ -340,6 +343,7 @@ bool snake_move(WINDOW *w, P_SNAKE psnake, P_FOOD pfood)
 	if ( tail->length == 0 ) {
 		psnake->seg_tail = tail->previous;	
 		psnake->seg_count--;
+		free(tail);
 	} 
 	else {
 		seg_update_tailxy(tail);
@@ -428,3 +432,16 @@ void ncurses_uninit()
 	endwin();
 }
 
+void free_snake(P_SNAKE psnake)
+{
+	P_SSEG seg = psnake->seg_head;
+	P_SSEG next = NULL;
+
+	while(seg) {
+		next = seg->next;
+		free(seg);
+		seg = next;
+	}
+
+	free(psnake);
+}
