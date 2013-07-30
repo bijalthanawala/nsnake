@@ -56,7 +56,7 @@ WINDOW* ncurses_init();
 void ncurses_uninit();
 
 P_SNAKE snake_init();
-void snake_draw_init(P_SSEG pseg);
+void snake_draw_init(WINDOW *w, P_SSEG pseg);
 bool snake_move(WINDOW *w, P_SNAKE psnake);
 
 /* Routines
@@ -75,10 +75,13 @@ int main()
 		return 1;
 	}
 
-	while ( ch != 'x') {
+	while ( !(ch == 'x' || 
+                  ch == 'q' ||
+                  ch == 27 
+                 )) {
 		usleep(DEFAULT_DELAY);
-		snake_move(w, psnake);
 		ch = tolower(getch());
+		snake_move(w, psnake);
 	}
 	
 	ncurses_uninit();
@@ -125,13 +128,15 @@ bool snake_move(WINDOW *w, P_SNAKE psnake)
 {
 	P_SSEG head = psnake->seg_head;
 	P_SSEG tail = psnake->seg_tail;
+
 	seg_update_headxy(head);
 	head->length++;
+	//mvwprintw(w, 1,1, "curry=%d currxx=%d maxy=%d maxx=%d", head->curry, head->currx, w->_maxy, w->_maxx);
 	if(head->currx >= w->_begx && 
  	   head->currx <= w->_maxx &&
 	   head->curry >= w->_begy &&
 	   head->curry <= w->_maxy) { 
-		mvaddch(head->curry, head->currx, DEFAULT_SNAKE_CHAR);
+		mvwinsch(w, head->curry, head->currx, DEFAULT_SNAKE_CHAR);
 	}
 	else
 	{
@@ -139,7 +144,8 @@ bool snake_move(WINDOW *w, P_SNAKE psnake)
 		return false;
 	}
 
-        mvdelch(tail->endy, tail->endx);	
+	mvwinsch(w, tail->endy, tail->endx, '.');
+        mvwdelch(w, tail->endy, tail->endx);	
 	tail->length--;
 	seg_update_tailxy(tail);
 
@@ -172,7 +178,7 @@ P_SNAKE snake_init(WINDOW *w)
 	p_initseg->length = DEFAULT_INIT_LENGTH;	
 	p_initseg-> dir = DIR_UP;
 	p_initseg->currx = w->_maxx;
-	p_initseg->curry = w->_maxy - DEFAULT_INIT_LENGTH - 1;
+	p_initseg->curry = w->_maxy - DEFAULT_INIT_LENGTH + 1;
 	p_initseg->endx = w->_maxx;
 	p_initseg->endy = w->_maxy;
 
@@ -182,19 +188,21 @@ P_SNAKE snake_init(WINDOW *w)
 	psnake->seg_tail = p_initseg;
 
 	/* Draw the initial snake */
-	snake_draw_init(p_initseg);
+	snake_draw_init(w, p_initseg);
 
 	return psnake;
 }
 
-void snake_draw_init(P_SSEG pseg)
+void snake_draw_init(WINDOW *w, P_SSEG pseg)
 {
 	int i;
 	NCURSES_SIZE_T y = pseg->curry;
 	NCURSES_SIZE_T x = pseg->currx;
 
+	//mvwprintw(w, 1,1, "y=%d x=%d maxy=%d maxx=%d", y, x, w->_maxy, w->_maxx);
+
 	for(i=0; i < pseg->length; i++, y++) {
-		mvaddch(y, x, DEFAULT_SNAKE_CHAR);
+		mvwaddch(w, y, x, DEFAULT_SNAKE_CHAR);
 	}
 }
 
