@@ -58,8 +58,6 @@ typedef struct snake_segment {
 
 typedef struct snake {
 	int seg_count;
-	bool b_show_segcount;
-	bool b_show_length;
 	P_SSEG seg_head;
 	P_SSEG seg_tail; 
 } SNAKE , *P_SNAKE;
@@ -68,6 +66,8 @@ typedef struct settings {
 	int delay;
 	chtype ch_draw;
 	chtype ch_erase;
+	bool b_show_segcount;
+	bool b_show_length;
 } SETTINGS, *P_SETTINGS;
 
 typedef struct food {
@@ -172,10 +172,14 @@ bool process_char(int ch, WINDOW *w, P_SETTINGS pset, P_SNAKE psnake)
 				           DEFAULT_ERASE_CHAR;
 			break;
 		case 's':
-			psnake->b_show_segcount = psnake->b_show_segcount ? false : true; 
+			pset->b_show_segcount = pset->b_show_segcount ? false : true; 
+			if(pset->b_show_segcount) 
+				pset->b_show_length = false;
 			break;
 		case 'l':
-			psnake->b_show_length = psnake->b_show_length ? false : true; 
+			pset->b_show_length = pset->b_show_length ? false : true; 
+			if(pset->b_show_length) 
+				pset->b_show_segcount = false;
 			break;
 		case ASCII_ARROW_LEFT:
 			snake_steer(w, psnake, DIR_LEFT);
@@ -320,8 +324,8 @@ bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 {
 	P_SSEG head = psnake->seg_head;
 	P_SSEG tail = psnake->seg_tail;
-        chtype ch = psnake->b_show_segcount ?  (psnake->seg_count + '0') :
-		    	psnake->b_show_length ? head->length + '0'  : pset->ch_draw;	
+        chtype ch = pset->b_show_segcount ?  (psnake->seg_count + '0') :
+		    	pset->b_show_length ? head->length + '0'  : pset->ch_draw;	
 
 	seg_update_headxy(head);
 	head->length++;
@@ -361,6 +365,8 @@ void init_settings(P_SETTINGS pset)
 	pset->delay = DEFAULT_DELAY;
 	pset->ch_draw = DEFAULT_DRAW_CHAR;
 	pset->ch_erase = DEFAULT_ERASE_CHAR;
+	pset->b_show_segcount = false;
+        pset->b_show_length = false;
 } 
 
 P_SNAKE snake_init(WINDOW *w)
@@ -396,7 +402,6 @@ P_SNAKE snake_init(WINDOW *w)
 
 	/* Initialize snake */
 	psnake->seg_count = 1;
-        psnake->b_show_segcount = false;
 
 	/* Insert initial segment into the snake */
 	psnake->seg_head = p_initseg;
