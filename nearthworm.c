@@ -445,6 +445,7 @@ bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 
 	if( is_border(w, psnake)) {
 		if(!pset->portal) {
+	        	sleep(2);	
 			beep();
 			return false;
 		}
@@ -452,10 +453,14 @@ bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 		get_border_portal_coord(w, psnake, &newcoord);
 		pnewhead = generate_new_head(head->dir, &newcoord); 
 		if( ! pnewhead) {
+	        	sleep(2);	
 			beep();
 			return false;
 		}
 		insert_new_head(psnake, pnewhead);
+		head = pnewhead;
+		seg_update_headxy(head);
+		head->length++;
 	}
 
 	if( is_self_collision(pset, psnake)) {
