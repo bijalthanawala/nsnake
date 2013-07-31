@@ -64,6 +64,7 @@ typedef struct snake {
 
 typedef struct settings {
 	int delay;
+	bool pause;
 	chtype ch_draw;
 	chtype ch_erase;
 	bool b_show_segcount;
@@ -125,10 +126,15 @@ int main()
 		if(food.b_eaten) {
 			place_food(w, &food);
 		}
+
 		usleep(settings.delay);
-		if(!snake_move(w, &settings, psnake, &food)) {
-			break;
+
+		if(!settings.pause) {
+			if(!snake_move(w, &settings, psnake, &food)) {
+				break;
+			}
 		}
+
 		ch = tolower(getch());
 		process_char(ch, w, &settings, psnake);
 	}
@@ -180,6 +186,9 @@ bool process_char(int ch, WINDOW *w, P_SETTINGS pset, P_SNAKE psnake)
 			pset->b_show_length = pset->b_show_length ? false : true; 
 			if(pset->b_show_length) 
 				pset->b_show_segcount = false;
+			break;
+		case 'p':
+			pset->pause = pset->pause ? false : true;
 			break;
 		case ASCII_ARROW_LEFT:
 			snake_steer(w, psnake, DIR_LEFT);
@@ -363,6 +372,7 @@ bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 void init_settings(P_SETTINGS pset) 
 {
 	pset->delay = DEFAULT_DELAY;
+	pset->pause = false;
 	pset->ch_draw = DEFAULT_DRAW_CHAR;
 	pset->ch_erase = DEFAULT_ERASE_CHAR;
 	pset->b_show_segcount = false;
