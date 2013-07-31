@@ -345,6 +345,7 @@ bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 	tail->length--;
 	if ( tail->length == 0 ) {
 		psnake->seg_tail = tail->previous;	
+		psnake->seg_tail->next = NULL;
 		psnake->seg_count--;
 		free(tail);
 	} 
