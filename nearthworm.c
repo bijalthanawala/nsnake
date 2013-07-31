@@ -67,6 +67,7 @@ typedef struct settings {
 	int delay;
 	bool pause;
 	bool portal;
+	bool cheat;
 	chtype ch_draw;
 	chtype ch_erase;
 	chtype ch_food;
@@ -208,6 +209,9 @@ bool process_char(int ch, WINDOW *w, P_SETTINGS pset, P_SNAKE psnake)
 			break;
 		case 'o':
 			pset->portal = pset->portal ? false: true;
+			break;
+		case 'c':
+			pset->cheat = pset->cheat ? false: true;
 			break;
 		case ASCII_ARROW_LEFT:
 			snake_steer(w, psnake, DIR_LEFT);
@@ -391,6 +395,10 @@ bool is_self_collision(P_SETTINGS pset, P_SNAKE psnake)
 	P_COORD pc_inq = &head->coord_start;
 	P_SSEG eachseg = NULL;
 
+	if(pset->cheat) {
+		return false;
+	}
+
 	if(psnake->seg_count == 1) {
 		return false;
 	}
@@ -498,6 +506,7 @@ void init_settings(P_SETTINGS pset)
 	pset->delay = DEFAULT_DELAY;
 	pset->pause = false;
 	pset->portal = true;
+	pset->cheat = false;
 	pset->ch_draw = DEFAULT_DRAW_CHAR;
 	pset->ch_erase = DEFAULT_ERASE_CHAR;
 	pset->ch_food = DEFAULT_FOOD_CHAR;
