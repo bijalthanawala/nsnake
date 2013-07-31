@@ -6,13 +6,14 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <time.h>
+#include <assert.h>
 
 #include <ncurses.h>
 
 
 /* Macros / Defnitions
  ************************/
-#define DEFAULT_INIT_LENGTH 1 
+#define DEFAULT_INIT_LENGTH 5
 #define DEFAULT_DRAW_CHAR  'S' 
 #define DEFAULT_ERASE_CHAR  ' ' 
 #define DEFAULT_TRACE_CHAR '.'
@@ -83,15 +84,19 @@ void ncurses_uninit();
 
 void init_settings(P_SETTINGS pset);
 P_SNAKE snake_init();
+void free_snake(P_SNAKE psnake);
 void snake_draw_init(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake);
+
 bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood);
 bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir);
+bool place_food(WINDOW *w , P_FOOD pfood);
+bool eat_food(P_SNAKE psnake, P_FOOD pfood);
+bool is_self_collision(P_SETTINGS pset, P_SNAKE psnake);
 
 bool process_char(int ch, WINDOW *w, P_SETTINGS psettings, P_SNAKE psnake);
 
-bool place_food(WINDOW *w , P_FOOD pfood);
-
-void free_snake(P_SNAKE psnake);
+void rank_coord(P_SSEG pseg, P_COORD *ppc_small, P_COORD *ppc_large);
+bool is_coord_on_seg(P_COORD pc_inq, P_SSEG pseg);
 
 /* Routines
  *************/
@@ -233,18 +238,21 @@ bool seg_update_tailxy(P_SSEG seg)
 	seg_update_coord(seg->dir, &seg->coord_end);
 }
 
-bool is_valid_coord(WINDOW *w, P_COORD pcoord)
+bool is_border(WINDOW *w, P_SNAKE psnake)
 {
+	P_SSEG head = psnake->seg_head;
+	P_COORD pcoord = &head->coord_start;
+
 	if(pcoord->x >= w->_begx && 
  	   pcoord->x <= w->_maxx &&
 	   pcoord->y >= w->_begy &&
 	   pcoord->y <= w->_maxy) { 
-		return true;
+		return false;
 	}
 	
 	/* TODO: Detect if head touched any part of snake itself */
 
-	return false;
+	return true;
 }
 
 bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir)
@@ -329,6 +337,26 @@ bool eat_food(P_SNAKE psnake, P_FOOD pfood)
 	return false;
 }
 
+bool is_self_collision(P_SETTINGS pset, P_SNAKE psnake)
+{
+	P_SSEG head = psnake->seg_head;
+	P_COORD pc_inq = &head->coord_start;
+	P_SSEG eachseg = NULL;
+
+	if(psnake->seg_count == 1) {
+		return false;
+	}
+
+	eachseg = head->next;
+	while(eachseg) {
+		if(is_coord_on_seg(pc_inq, eachseg))
+			return true;
+		eachseg = eachseg->next;
+	}
+
+	return false;	
+}
+
 bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 {
 	P_SSEG head = psnake->seg_head;
@@ -338,17 +366,21 @@ bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 
 	seg_update_headxy(head);
 	head->length++;
-	if(is_valid_coord(w, &head->coord_start)) {
-		mvwaddch(w, 
-                       	head->coord_start.y, 
-                        head->coord_start.x, 
-			ch);
-	}
-	else
-	{
+
+	if( is_border(w, psnake)) {
 		beep();
 		return false;
 	}
+
+	if( is_self_collision(pset, psnake)) {
+		beep();
+		return false;
+	}
+
+	mvwaddch(w, 
+               	head->coord_start.y, 
+                head->coord_start.x, 
+		ch);
 
 	if(eat_food(psnake, pfood)) {
 		return true;
@@ -445,6 +477,69 @@ WINDOW* ncurses_init()
 	nodelay(w, true);
 	
 	return w;
+}
+
+void rank_coord(P_SSEG pseg, P_COORD *ppc_small, P_COORD *ppc_large)
+{
+	if(pseg->coord_start.y > pseg->coord_end.y) {
+		*ppc_large = &pseg->coord_start;	
+		*ppc_small = &pseg->coord_end;	
+		return;
+	} 
+	else if(pseg->coord_start.y < pseg->coord_end.y) {
+		*ppc_large = &pseg->coord_end;	
+		*ppc_small = &pseg->coord_start;	
+		return;
+	}
+	else {
+		if(pseg->coord_start.x > pseg->coord_end.x) {
+			*ppc_large = &pseg->coord_start;	
+			*ppc_small = &pseg->coord_end;	
+			return;
+		}
+		else {
+			//At this point start.x is either < or = end.x
+			//If it is equal then, both - the start and the end cord 
+			//are exactly the same	
+			*ppc_large = &pseg->coord_end;	
+			*ppc_small = &pseg->coord_start;	
+			return;
+		}
+	}
+}
+
+bool is_coord_on_seg(P_COORD pc_inq, P_SSEG pseg)
+{
+	P_COORD pc_small=NULL, pc_large=NULL;
+	if(pseg->dir == DIR_LEFT || pseg->dir == DIR_RIGHT) {
+		if( pc_inq->y != pseg->coord_start.y) {
+			return false;
+		}
+		rank_coord(pseg, &pc_small, &pc_large);
+		if(pc_inq->x >= pc_small->x && pc_inq->x <= pc_large->x) {
+			return true;
+		} 
+		else {
+			return false;
+		}
+	} 	
+
+	if(pseg->dir == DIR_UP || pseg->dir == DIR_DOWN) {
+		if( pc_inq->x != pseg->coord_start.x) {
+			return false;
+		}
+		rank_coord(pseg, &pc_small, &pc_large);
+		if(pc_inq->y >= pc_small->y && pc_inq->y <= pc_large->y) {
+			return true;
+		} 
+		else {
+			return false;
+		}
+	} 	
+
+	//should never reach here
+	printf("is_cord_on_page: hit no logic's land");
+	assert(false);
 }
 
 
