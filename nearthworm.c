@@ -106,6 +106,9 @@ bool is_coord_on_seg(P_COORD pc_inq, P_SSEG pseg);
 
 void get_border_portal_coord(WINDOW *w, P_SNAKE psnake,P_COORD pc);
 
+void reverse_snake(P_SNAKE psnake);
+direction_t reverse_direction(direction_t dir);
+
 /* Routines
  *************/
 int main()
@@ -275,10 +278,11 @@ bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir)
 {
 	P_SSEG pnewhead = NULL;
 	P_SSEG head = psnake->seg_head;
-	bool dir_ok = true;
+	bool dir_reversed = false;
 
-	if( psnake->seg_head->dir == dir )
+	if( psnake->seg_head->dir == dir ) {
 		return true;
+	}
 	
 	
 	//mvprintw(0,0,"dir=%x head-dir=%x CHECKING", dir, psnake->seg_head->dir);
@@ -286,28 +290,32 @@ bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir)
 	{
 	case DIR_UP:
 		if(psnake->seg_head->dir == DIR_DOWN) {
-			dir_ok = false;	
+			reverse_snake(psnake);	
+			dir_reversed = true;
 		}
 		break;
 	case DIR_DOWN:
 		if(psnake->seg_head->dir == DIR_UP) {
-			dir_ok = false;	
+			reverse_snake(psnake);	
+			dir_reversed = true;
 		}
 		break;
 	case DIR_LEFT:
 		if(psnake->seg_head->dir == DIR_RIGHT) {
-			dir_ok = false;	
+			reverse_snake(psnake);	
+			dir_reversed = true;
 		}
 		break;
 	case DIR_RIGHT:
 		if(psnake->seg_head->dir == DIR_LEFT) {
-			dir_ok = false;	
+			reverse_snake(psnake);	
+			dir_reversed = true;
 		}
 		break;
 	}
 	//mvprintw(0,0,"dir=%x head-dir=%x %s", dir, psnake->seg_head->dir, dir_ok ? "PASSED" : "FAILED");
-	if( ! dir_ok ) {
-		return false;
+	if(dir_reversed) {
+		return true;
 	}
 	
 
@@ -664,4 +672,45 @@ void free_snake(P_SNAKE psnake)
 	}
 
 	free(psnake);
+}
+
+direction_t reverse_direction(direction_t dir)
+{
+	switch(dir) {
+		case DIR_LEFT:
+			return DIR_RIGHT;
+		case DIR_RIGHT:
+			return DIR_LEFT;
+		case DIR_UP:
+			return DIR_DOWN;
+		case DIR_DOWN:
+			return DIR_UP;
+	}
+
+	//Should never reach here !
+	return DIR_UP;
+}
+
+void reverse_snake(P_SNAKE psnake)
+{
+	P_SSEG seg = psnake->seg_head;
+	P_SSEG next = NULL;
+	COORD coord_temp;
+	
+	while(seg) 
+	{	
+		next = seg->next;
+		seg->next = seg->previous;
+		seg->previous = next;
+		seg->dir = reverse_direction(seg->dir);
+		coord_temp = seg->coord_start;
+		seg->coord_start = seg->coord_end;
+		seg->coord_end = coord_temp;
+		seg = next;
+	}
+
+	
+	seg = psnake->seg_head;
+	psnake->seg_head = psnake->seg_tail;
+	psnake->seg_tail = seg; 
 }
