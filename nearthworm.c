@@ -89,12 +89,13 @@ void snake_draw_init(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake);
 
 bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood);
 bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir);
-bool place_food(WINDOW *w , P_FOOD pfood);
+bool place_food(WINDOW *w , P_FOOD pfood, P_SNAKE psnake);
 bool eat_food(P_SNAKE psnake, P_FOOD pfood);
 bool is_self_collision(P_SETTINGS pset, P_SNAKE psnake);
 
 bool process_char(int ch, WINDOW *w, P_SETTINGS psettings, P_SNAKE psnake);
 
+bool is_coord_on_snake(P_COORD pc_inq, P_SNAKE psnake);
 void rank_coord(P_SSEG pseg, P_COORD *ppc_small, P_COORD *ppc_large);
 bool is_coord_on_seg(P_COORD pc_inq, P_SSEG pseg);
 
@@ -129,7 +130,7 @@ int main()
                  )) {
 
 		if(food.b_eaten) {
-			place_food(w, &food);
+			place_food(w, &food ,psnake);
 		}
 
 		usleep(settings.delay);
@@ -149,20 +150,21 @@ int main()
 	return 0;
 }
 
-bool place_food(WINDOW *w , P_FOOD pfood)
+bool place_food(WINDOW *w , P_FOOD pfood, P_SNAKE psnake)
 {
 	long int rnd = 0;
-	P_COORD coord = &pfood->coord;
+	P_COORD pcoord = &pfood->coord;
 
 	pfood->b_eaten = false;
 
 	srandom(time(NULL));		
-	coord->y = random() % w->_maxy;  
-	coord->x = random() % w->_maxx;  
 
-	/* TODO: Detect and correct if food has landed on any part of snake itself */
+	do {
+		pcoord->y = random() % w->_maxy;  
+		pcoord->x = random() % w->_maxx;  
+	} while(is_coord_on_snake(pcoord, psnake));
 
-	mvwaddch(w, coord->y, coord->x, DEFAULT_FOOD_CHAR);
+	mvwaddch(w, pcoord->y, pcoord->x, DEFAULT_FOOD_CHAR);
 }
 
 bool process_char(int ch, WINDOW *w, P_SETTINGS pset, P_SNAKE psnake)
@@ -250,8 +252,6 @@ bool is_border(WINDOW *w, P_SNAKE psnake)
 		return false;
 	}
 	
-	/* TODO: Detect if head touched any part of snake itself */
-
 	return true;
 }
 
@@ -299,8 +299,6 @@ bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir)
 		return false;
 	}
 	
-	/* TODO: Handle case where steering is catastrophic */
-	
 	/* Setup the new segment in the expected direction */
 	pseg->previous = NULL;
 	pseg->next = psnake->seg_head;
@@ -335,6 +333,21 @@ bool eat_food(P_SNAKE psnake, P_FOOD pfood)
 	}
 
 	return false;
+}
+
+bool is_coord_on_snake(P_COORD pc_inq, P_SNAKE psnake)
+{
+	P_SSEG head = psnake->seg_head;
+	P_SSEG eachseg = NULL;
+
+	eachseg = head;
+	while(eachseg) {
+		if(is_coord_on_seg(pc_inq, eachseg))
+			return true;
+		eachseg = eachseg->next;
+	}
+
+	return false;	
 }
 
 bool is_self_collision(P_SETTINGS pset, P_SNAKE psnake)
