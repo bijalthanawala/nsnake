@@ -13,7 +13,7 @@
 
 /* Macros / Defnitions
  ************************/
-#define DEFAULT_INIT_LENGTH 5
+#define DEFAULT_INIT_LENGTH 8
 #define DEFAULT_DRAW_CHAR  'S' 
 #define DEFAULT_ERASE_CHAR  ' ' 
 #define DEFAULT_TRACE_CHAR '.'
@@ -66,8 +66,10 @@ typedef struct snake {
 typedef struct settings {
 	int delay;
 	bool pause;
+	bool portal;
 	chtype ch_draw;
 	chtype ch_erase;
+	chtype ch_food;
 	bool b_show_segcount;
 	bool b_show_length;
 } SETTINGS, *P_SETTINGS;
@@ -89,15 +91,19 @@ void snake_draw_init(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake);
 
 bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood);
 bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir);
-bool place_food(WINDOW *w , P_FOOD pfood, P_SNAKE psnake);
+bool place_food(WINDOW *w , P_SETTINGS pset, P_FOOD pfood, P_SNAKE psnake);
 bool eat_food(P_SNAKE psnake, P_FOOD pfood);
 bool is_self_collision(P_SETTINGS pset, P_SNAKE psnake);
+P_SSEG generate_new_head(direction_t newdir, P_COORD newcoord);
+void insert_new_head(P_SNAKE psnake, P_SSEG pnewhead);
 
 bool process_char(int ch, WINDOW *w, P_SETTINGS psettings, P_SNAKE psnake);
 
 bool is_coord_on_snake(P_COORD pc_inq, P_SNAKE psnake);
 void rank_coord(P_SSEG pseg, P_COORD *ppc_small, P_COORD *ppc_large);
 bool is_coord_on_seg(P_COORD pc_inq, P_SSEG pseg);
+
+void get_border_portal_coord(WINDOW *w, P_SNAKE psnake,P_COORD pc);
 
 /* Routines
  *************/
@@ -130,7 +136,7 @@ int main()
                  )) {
 
 		if(food.b_eaten) {
-			place_food(w, &food ,psnake);
+			place_food(w, &settings, &food ,psnake);
 		}
 
 		usleep(settings.delay);
@@ -150,7 +156,7 @@ int main()
 	return 0;
 }
 
-bool place_food(WINDOW *w , P_FOOD pfood, P_SNAKE psnake)
+bool place_food(WINDOW *w , P_SETTINGS pset, P_FOOD pfood, P_SNAKE psnake)
 {
 	long int rnd = 0;
 	P_COORD pcoord = &pfood->coord;
@@ -159,12 +165,15 @@ bool place_food(WINDOW *w , P_FOOD pfood, P_SNAKE psnake)
 
 	srandom(time(NULL));		
 
+	//pset->ch_food = '0';
 	do {
 		pcoord->y = random() % w->_maxy;  
+		//pcoord->y = psnake->seg_head->coord_start.y;  
 		pcoord->x = random() % w->_maxx;  
+		//pset->ch_food++;
 	} while(is_coord_on_snake(pcoord, psnake));
 
-	mvwaddch(w, pcoord->y, pcoord->x, DEFAULT_FOOD_CHAR);
+	mvwaddch(w, pcoord->y, pcoord->x, pset->ch_food);
 }
 
 bool process_char(int ch, WINDOW *w, P_SETTINGS pset, P_SNAKE psnake)
@@ -196,6 +205,9 @@ bool process_char(int ch, WINDOW *w, P_SETTINGS pset, P_SNAKE psnake)
 			break;
 		case 'p':
 			pset->pause = pset->pause ? false : true;
+			break;
+		case 'o':
+			pset->portal = pset->portal ? false: true;
 			break;
 		case ASCII_ARROW_LEFT:
 			snake_steer(w, psnake, DIR_LEFT);
@@ -257,7 +269,7 @@ bool is_border(WINDOW *w, P_SNAKE psnake)
 
 bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir)
 {
-	P_SSEG pseg = NULL;
+	P_SSEG pnewhead = NULL;
 	P_SSEG head = psnake->seg_head;
 	bool dir_ok = true;
 
@@ -294,31 +306,54 @@ bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir)
 		return false;
 	}
 	
-	pseg = calloc(sizeof(SSEG), 1);
-	if( ! pseg) {
+
+	pnewhead = generate_new_head(dir, &head->coord_start);
+	if( ! pnewhead) {
 		return false;
 	}
 	
-	/* Setup the new segment in the expected direction */
-	pseg->previous = NULL;
-	pseg->next = psnake->seg_head;
-	pseg->length = 0;	
-	pseg->dir = dir;
-	pseg->coord_start.x = head->coord_start.x;
-	pseg->coord_start.y = head->coord_start.y; 
-	pseg->coord_end.x = head->coord_start.x;
-	pseg->coord_end.y = head->coord_start.y;
-	seg_update_tailxy(pseg);
-
-	/* Fix snake's old head segment */
-	head->previous = pseg;
-
-	/* Add new segment to the snake's front */
-	psnake->seg_head = pseg;
-
-	psnake->seg_count++;
+	/* Make new segment the head of the snake */
+	insert_new_head(psnake, pnewhead);
 
 	return true;
+}
+
+P_SSEG generate_new_head(direction_t newdir, P_COORD newcoord)
+{
+	P_SSEG pnewhead = NULL;
+
+	pnewhead = calloc(sizeof(SSEG), 1);
+	if( ! pnewhead) {
+		return false;
+	}
+
+	/* Setup the new segment in the expected direction */
+	pnewhead->length = 0;	
+	pnewhead->dir = newdir;
+	pnewhead->coord_start.x = newcoord->x;
+	pnewhead->coord_start.y = newcoord->y; 
+	pnewhead->coord_end.x = newcoord->x;
+	pnewhead->coord_end.y = newcoord->y;
+	seg_update_tailxy(pnewhead);
+
+	return pnewhead;
+
+}
+
+void insert_new_head(P_SNAKE psnake, P_SSEG pnewhead)
+{
+	/* First perform pointer surgeries on
+           all involved nodes/segments
+        */
+	pnewhead->previous = NULL;
+	pnewhead->next = psnake->seg_head;
+	psnake->seg_head->previous = pnewhead;
+	
+	/* Now designate the new head and
+           increment segment count
+        */
+	psnake->seg_head = pnewhead;
+	psnake->seg_count++;
 }
 
 bool eat_food(P_SNAKE psnake, P_FOOD pfood)
@@ -370,22 +405,61 @@ bool is_self_collision(P_SETTINGS pset, P_SNAKE psnake)
 	return false;	
 }
 
+void get_border_portal_coord(WINDOW *w, P_SNAKE psnake,P_COORD pc)
+{
+	P_SSEG head = psnake->seg_head;
+	direction_t dir = head->dir;
+	P_COORD phead_coord = &head->coord_start;
+
+	switch(dir) {
+		case DIR_UP:
+			pc->x = phead_coord->x;
+			pc->y = w->_maxy;
+			break;	
+		case DIR_DOWN:
+			pc->x = phead_coord->x;
+			pc->y = w->_begy;
+			break;	
+		case DIR_LEFT:
+			pc->y = phead_coord->y;
+			pc->x = w->_maxx;
+			break;	
+		case DIR_RIGHT:
+			pc->y = phead_coord->y;
+			pc->x = w->_begx;
+			break;	
+	}
+}
+
 bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 {
 	P_SSEG head = psnake->seg_head;
 	P_SSEG tail = psnake->seg_tail;
         chtype ch = pset->b_show_segcount ?  (psnake->seg_count + '0') :
 		    	pset->b_show_length ? head->length + '0'  : pset->ch_draw;	
+	P_SSEG pnewhead = NULL;
+	COORD newcoord = {0,0};
 
 	seg_update_headxy(head);
 	head->length++;
 
 	if( is_border(w, psnake)) {
-		beep();
-		return false;
+		if(!pset->portal) {
+			beep();
+			return false;
+		}
+		//In portal-mode snake appear on the other side
+		get_border_portal_coord(w, psnake, &newcoord);
+		pnewhead = generate_new_head(head->dir, &newcoord); 
+		if( ! pnewhead) {
+			beep();
+			return false;
+		}
+		insert_new_head(psnake, pnewhead);
 	}
 
 	if( is_self_collision(pset, psnake)) {
+	        sleep(2);	
 		beep();
 		return false;
 	}
@@ -418,8 +492,10 @@ void init_settings(P_SETTINGS pset)
 {
 	pset->delay = DEFAULT_DELAY;
 	pset->pause = false;
+	pset->portal = true;
 	pset->ch_draw = DEFAULT_DRAW_CHAR;
 	pset->ch_erase = DEFAULT_ERASE_CHAR;
+	pset->ch_food = DEFAULT_FOOD_CHAR;
 	pset->b_show_segcount = false;
         pset->b_show_length = false;
 } 
@@ -569,6 +645,7 @@ void free_snake(P_SNAKE psnake)
 
 	while(seg) {
 		next = seg->next;
+		free(seg);
 		seg = next;
 	}
 
