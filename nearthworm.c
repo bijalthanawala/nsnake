@@ -68,6 +68,7 @@ typedef struct settings {
 	bool pause;
 	bool portal;
 	bool cheat;
+	bool reverse;
 	chtype ch_draw;
 	chtype ch_erase;
 	chtype ch_food;
@@ -91,7 +92,7 @@ void free_snake(P_SNAKE psnake);
 void snake_draw_init(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake);
 
 bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood);
-bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir);
+bool snake_steer(WINDOW *w, P_SETTINGS pset,  P_SNAKE psnake, direction_t dir);
 bool place_food(WINDOW *w , P_SETTINGS pset, P_FOOD pfood, P_SNAKE psnake);
 bool eat_food(P_SNAKE psnake, P_FOOD pfood);
 bool is_self_collision(P_SETTINGS pset, P_SNAKE psnake);
@@ -216,17 +217,20 @@ bool process_char(int ch, WINDOW *w, P_SETTINGS pset, P_SNAKE psnake)
 		case 'c':
 			pset->cheat = pset->cheat ? false: true;
 			break;
+		case 'r':
+			pset->reverse = pset->reverse ? false: true;
+			break;
 		case ASCII_ARROW_LEFT:
-			snake_steer(w, psnake, DIR_LEFT);
+			snake_steer(w, pset, psnake, DIR_LEFT);
 			break;
 		case ASCII_ARROW_RIGHT:
-			snake_steer(w, psnake, DIR_RIGHT);
+			snake_steer(w, pset, psnake, DIR_RIGHT);
 			break;
 		case ASCII_ARROW_UP:
-			snake_steer(w, psnake, DIR_UP);
+			snake_steer(w, pset, psnake, DIR_UP);
 			break;
 		case ASCII_ARROW_DN:
-			snake_steer(w, psnake, DIR_DOWN);
+			snake_steer(w, pset, psnake, DIR_DOWN);
 			break;
 	}
 }
@@ -274,11 +278,11 @@ bool is_border(WINDOW *w, P_SNAKE psnake)
 	return true;
 }
 
-bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir)
+bool snake_steer(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, direction_t dir)
 {
 	P_SSEG pnewhead = NULL;
 	P_SSEG head = psnake->seg_head;
-	bool dir_reversed = false;
+	bool dir_handled = false;
 
 	if( psnake->seg_head->dir == dir ) {
 		return true;
@@ -289,32 +293,32 @@ bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir)
 	switch(dir) 
 	{
 	case DIR_UP:
-		if(psnake->seg_head->dir == DIR_DOWN) {
+		if(psnake->seg_head->dir == DIR_DOWN && pset->reverse) {
 			reverse_snake(psnake);	
-			dir_reversed = true;
 		}
+		dir_handled = true;
 		break;
 	case DIR_DOWN:
-		if(psnake->seg_head->dir == DIR_UP) {
+		if(psnake->seg_head->dir == DIR_UP && pset->reverse) {
 			reverse_snake(psnake);	
-			dir_reversed = true;
 		}
+		dir_handled = true;
 		break;
 	case DIR_LEFT:
-		if(psnake->seg_head->dir == DIR_RIGHT) {
+		if(psnake->seg_head->dir == DIR_RIGHT && pset->reverse) {
 			reverse_snake(psnake);	
-			dir_reversed = true;
 		}
+		dir_handled = true;
 		break;
 	case DIR_RIGHT:
-		if(psnake->seg_head->dir == DIR_LEFT) {
+		if(psnake->seg_head->dir == DIR_LEFT && pset->reverse) {
 			reverse_snake(psnake);	
-			dir_reversed = true;
 		}
+		dir_handled = true;
 		break;
 	}
 	//mvprintw(0,0,"dir=%x head-dir=%x %s", dir, psnake->seg_head->dir, dir_ok ? "PASSED" : "FAILED");
-	if(dir_reversed) {
+	if(dir_handled) {
 		return true;
 	}
 	
@@ -522,6 +526,7 @@ void init_settings(P_SETTINGS pset)
 	pset->pause = false;
 	pset->portal = true;
 	pset->cheat = false;
+	pset->reverse = true;
 	pset->ch_draw = DEFAULT_DRAW_CHAR;
 	pset->ch_erase = DEFAULT_ERASE_CHAR;
 	pset->ch_food = DEFAULT_FOOD_CHAR;
