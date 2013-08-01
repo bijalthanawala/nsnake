@@ -355,17 +355,26 @@ P_SSEG generate_new_head(direction_t newdir, P_COORD newcoord)
 void insert_new_head(P_SNAKE psnake, P_SSEG pnewhead)
 {
 	/* First perform pointer surgeries on
-           all involved nodes/segments
-        */
-	pnewhead->previous = NULL;
-	pnewhead->next = psnake->seg_head;
-	psnake->seg_head->previous = pnewhead;
-	
-	/* Now designate the new head and
+           all involved nodes/segments and
            increment segment count
         */
+	pnewhead->previous = NULL;
+	if( psnake->seg_head->length) {
+		pnewhead->next = psnake->seg_head;
+		psnake->seg_head->previous = pnewhead;
+		psnake->seg_count++;
+	} 
+	else {
+		pnewhead->next = psnake->seg_head->next;
+		if(pnewhead->next) {
+			pnewhead->next->previous = pnewhead;
+		}
+		free(psnake->seg_head);
+	}
+	
+	/* Now designate the new head
+        */
 	psnake->seg_head = pnewhead;
-	psnake->seg_count++;
 }
 
 bool eat_food(P_SNAKE psnake, P_FOOD pfood)
@@ -578,6 +587,7 @@ void snake_draw_init(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake)
 WINDOW* ncurses_init()
 {
 	WINDOW *w = NULL;
+	
 	w = initscr();
 	keypad(stdscr, TRUE);
 	cbreak();
@@ -586,8 +596,13 @@ WINDOW* ncurses_init()
 	nodelay(w, true);
 
 	/* Reserve space for key help */
-        //w->_begy = 0;	
+	//*w_game = *w;
+	//w = w_game;
 	//mvprintw(0,0,"w->_begy=%d\n",w->_begy);
+        //w->_begy = 1;	
+	//w->_begx = 1;
+	//w->_maxy--;
+	//`w->_maxx--;
 
 	//start_color();
 	//init_pair(1, COLOR_RED, COLOR_BLACK);
