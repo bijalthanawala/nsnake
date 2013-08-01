@@ -120,11 +120,13 @@ int main()
 	int ch = 0;
 	SETTINGS settings;
 
-	/* Initialize settings */
+	/* Initialize game's default settings */
 	init_settings(&settings);
 
+	/* Initialize ncurses */
 	w = ncurses_init();
 	
+	/* Initialize the snake structure */
 	psnake = snake_init(w);
 	if( ! psnake ) {
 		ncurses_uninit();
@@ -134,6 +136,7 @@ int main()
 	/* Draw the initial snake */
 	snake_draw_init(w, &settings, psnake);
 
+	/* main loop */
 	food.b_eaten = true;
 	while ( !(ch == 'x' || 
                   ch == 'q' ||
@@ -156,7 +159,10 @@ int main()
 		process_char(ch, w, &settings, psnake);
 	}
 	
+	/* Uninitialize ncurses library */
 	ncurses_uninit();
+
+	/* Free all snake segments and snake structure */
 	free_snake(psnake);
 	return 0;
 }
@@ -170,12 +176,13 @@ bool place_food(WINDOW *w , P_SETTINGS pset, P_FOOD pfood, P_SNAKE psnake)
 
 	srandom(time(NULL));		
 
-	//pset->ch_food = '0';
+	/* Generate random location to place the food.
+ 	   If the random location turns out to be on snake's body
+	   regenerate location
+	*/
 	do {
 		pcoord->y = random() % w->_maxy;  
-		//pcoord->y = psnake->seg_head->coord_start.y;  
 		pcoord->x = random() % w->_maxx;  
-		//pset->ch_food++;
 	} while(is_coord_on_snake(pcoord, psnake));
 
 	mvwaddch(w, pcoord->y, pcoord->x, pset->ch_food);
@@ -293,28 +300,36 @@ bool snake_steer(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, direction_t dir)
 	switch(dir) 
 	{
 	case DIR_UP:
-		if(psnake->seg_head->dir == DIR_DOWN && pset->reverse) {
-			reverse_snake(psnake);	
+		if(psnake->seg_head->dir == DIR_DOWN) {
+			if( pset->reverse) {
+				reverse_snake(psnake);	
+			}
+			dir_handled = true;
 		}
-		dir_handled = true;
 		break;
 	case DIR_DOWN:
-		if(psnake->seg_head->dir == DIR_UP && pset->reverse) {
-			reverse_snake(psnake);	
+		if(psnake->seg_head->dir == DIR_UP) {
+			if( pset->reverse) {
+				reverse_snake(psnake);	
+			}
+			dir_handled = true;
 		}
-		dir_handled = true;
 		break;
 	case DIR_LEFT:
-		if(psnake->seg_head->dir == DIR_RIGHT && pset->reverse) {
-			reverse_snake(psnake);	
+		if(psnake->seg_head->dir == DIR_RIGHT) {
+			if( pset->reverse) {
+				reverse_snake(psnake);	
+			}
+			dir_handled = true;
 		}
-		dir_handled = true;
 		break;
 	case DIR_RIGHT:
-		if(psnake->seg_head->dir == DIR_LEFT && pset->reverse) {
-			reverse_snake(psnake);	
+		if(psnake->seg_head->dir == DIR_LEFT) {
+			if( pset->reverse) {
+				reverse_snake(psnake);	
+			}
+			dir_handled = true;
 		}
-		dir_handled = true;
 		break;
 	}
 	//mvprintw(0,0,"dir=%x head-dir=%x %s", dir, psnake->seg_head->dir, dir_ok ? "PASSED" : "FAILED");
@@ -469,15 +484,23 @@ bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 	P_SSEG pnewhead = NULL;
 	COORD newcoord = {0,0};
 
+	/* Advance head's x,y (do not draw yet) */
 	seg_update_headxy(head);
 
+	/* Check if head is within the border */
 	if( is_border(w, psnake)) {
+
+		/* If head hits border, and portal mode is off
+ 		   then quit the game
+		*/
 		if(!pset->portal) {
 	        	sleep(2);	
 			beep();
 			return false;
 		}
-		//In portal-mode snake appear on the other side
+		/* If head hits border, and portal mode is ON
+		   then snake appear on the other side
+		*/
 		get_border_portal_coord(w, psnake, &newcoord);
 		pnewhead = generate_new_head(head->dir, &newcoord); 
 		if( ! pnewhead) {
@@ -489,24 +512,38 @@ bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 		head = pnewhead;
 	}
 
+	/* Check if snake hs collided with itself */ 
 	if( is_self_collision(pset, psnake)) {
 	        sleep(2);	
 		beep();
 		return false;
 	}
 
+	/* Now draw the head of the snake at the new location */
 	mvwaddch(w, 
                	head->coord_start.y, 
                 head->coord_start.x, 
 		ch);
 	head->length++;
 
+	/* Check if there was food at the new head position */
 	if(eat_food(psnake, pfood)) {
+		/* If food was just eaten do not advance the tail
+                   this will cause the snake to grow by one unit
+		*/
 		return true;
 	}
 
+	/* Actually draw advancement of the tail.
+           Really this step clears (undraws) the very last character of the snake
+        */
 	mvwaddch(w, tail->coord_end.y, tail->coord_end.x, pset->ch_erase);
 	tail->length--;
+
+
+	/* If tail segment has finished, designate previous segment
+           to be the new tail - and free the old tail
+	*/
 	if ( tail->length == 0 ) {
 		psnake->seg_tail = tail->previous;	
 		psnake->seg_tail->next = NULL;
@@ -514,6 +551,7 @@ bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 		free(tail);
 	} 
 	else {
+		/*  Advance tail's x,y (do not draw) */
 		seg_update_tailxy(tail);
 	}
 
