@@ -323,6 +323,7 @@ bool snake_steer(WINDOW *w, P_SNAKE psnake, direction_t dir)
 	if( ! pnewhead) {
 		return false;
 	}
+	seg_update_tailxy(pnewhead);
 	
 	/* Make new segment the head of the snake */
 	insert_new_head(psnake, pnewhead);
@@ -346,7 +347,6 @@ P_SSEG generate_new_head(direction_t newdir, P_COORD newcoord)
 	pnewhead->coord_start.y = newcoord->y; 
 	pnewhead->coord_end.x = newcoord->x;
 	pnewhead->coord_end.y = newcoord->y;
-	seg_update_tailxy(pnewhead);
 
 	return pnewhead;
 
@@ -457,7 +457,6 @@ bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 	COORD newcoord = {0,0};
 
 	seg_update_headxy(head);
-	head->length++;
 
 	if( is_border(w, psnake)) {
 		if(!pset->portal) {
@@ -475,8 +474,6 @@ bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 		}
 		insert_new_head(psnake, pnewhead);
 		head = pnewhead;
-		seg_update_headxy(head);
-		head->length++;
 	}
 
 	if( is_self_collision(pset, psnake)) {
@@ -489,6 +486,7 @@ bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
                	head->coord_start.y, 
                 head->coord_start.x, 
 		ch);
+	head->length++;
 
 	if(eat_food(psnake, pfood)) {
 		return true;
@@ -586,6 +584,14 @@ WINDOW* ncurses_init()
 	noecho();
 	nonl();
 	nodelay(w, true);
+
+	/* Reserve space for key help */
+        //w->_begy = 0;	
+	//mvprintw(0,0,"w->_begy=%d\n",w->_begy);
+
+	//start_color();
+	//init_pair(1, COLOR_RED, COLOR_BLACK);
+	//attron(COLOR_PAIR(1));
 	
 	return w;
 }
