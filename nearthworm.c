@@ -13,7 +13,7 @@
 
 /* Macros / Defnitions
  ************************/
-#define DEFAULT_INIT_LENGTH 8
+#define DEFAULT_INIT_LENGTH 1
 #define DEFAULT_DRAW_CHAR  'S' 
 #define DEFAULT_ERASE_CHAR  ' ' 
 #define DEFAULT_TRACE_CHAR '.'
@@ -31,6 +31,19 @@
 
 #define SPEED_INC (-10) 
 #define SPEED_DEC (+10) 
+
+#define COLOR_PAIR_BOX   	1
+#define COLOR_PAIR_FOOD 	2
+#define COLOR_PAIR_SNAKE	3
+
+//#define DRAW_CHAR(w, y, x, ch) mvwaddch(w, y, x, ch)
+#define DRAW_CHAR(w, y, x, ch) mvaddch(y, x, ch)
+
+#define DRAW_SNAKE_HEAD(w, y, x, ch) { \
+	attron(COLOR_PAIR(COLOR_PAIR_SNAKE)); \
+	DRAW_CHAR(w, y, x, ch); \
+	attroff(COLOR_PAIR(COLOR_PAIR_SNAKE)); \
+	}
 
 /* enums
  ***********/
@@ -181,11 +194,16 @@ bool place_food(WINDOW *w , P_SETTINGS pset, P_FOOD pfood, P_SNAKE psnake)
 	   regenerate location
 	*/
 	do {
-		pcoord->y = random() % w->_maxy;  
-		pcoord->x = random() % w->_maxx;  
-	} while(is_coord_on_snake(pcoord, psnake));
+		pcoord->y = random() % (w->_maxy-1);  
+		pcoord->x = random() % (w->_maxx-1);  
+	} while(is_coord_on_snake(pcoord, psnake) || 
+		pcoord->x <= w->_begx || 
+	        pcoord->y <= w->_begy);
 
-	mvwaddch(w, pcoord->y, pcoord->x, pset->ch_food);
+	/* Now draw the food */
+	attron(COLOR_PAIR(COLOR_PAIR_FOOD));
+	DRAW_CHAR(w, pcoord->y, pcoord->x, pset->ch_food);
+	attroff(COLOR_PAIR(COLOR_PAIR_FOOD));
 }
 
 bool process_char(int ch, WINDOW *w, P_SETTINGS pset, P_SNAKE psnake)
@@ -275,10 +293,10 @@ bool is_border(WINDOW *w, P_SNAKE psnake)
 	P_SSEG head = psnake->seg_head;
 	P_COORD pcoord = &head->coord_start;
 
-	if(pcoord->x >= w->_begx && 
- 	   pcoord->x <= w->_maxx &&
-	   pcoord->y >= w->_begy &&
-	   pcoord->y <= w->_maxy) { 
+	if(pcoord->x > w->_begx && 
+ 	   pcoord->x < w->_maxx &&
+	   pcoord->y > w->_begy &&
+	   pcoord->y < w->_maxy) { 
 		return false;
 	}
 	
@@ -458,19 +476,19 @@ void get_border_portal_coord(WINDOW *w, P_SNAKE psnake,P_COORD pc)
 	switch(dir) {
 		case DIR_UP:
 			pc->x = phead_coord->x;
-			pc->y = w->_maxy;
+			pc->y = w->_maxy - 1;
 			break;	
 		case DIR_DOWN:
 			pc->x = phead_coord->x;
-			pc->y = w->_begy;
+			pc->y = w->_begy + 1;
 			break;	
 		case DIR_LEFT:
 			pc->y = phead_coord->y;
-			pc->x = w->_maxx;
+			pc->x = w->_maxx - 1;
 			break;	
 		case DIR_RIGHT:
 			pc->y = phead_coord->y;
-			pc->x = w->_begx;
+			pc->x = w->_begx + 1;
 			break;	
 	}
 }
@@ -490,7 +508,7 @@ bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 	/* Check if head is within the border */
 	if( is_border(w, psnake)) {
 
-		/* If head hits border, and portal mode is off
+		/* If head hits border, and portal mode is OFF
  		   then quit the game
 		*/
 		if(!pset->portal) {
@@ -520,7 +538,7 @@ bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 	}
 
 	/* Now draw the head of the snake at the new location */
-	mvwaddch(w, 
+	DRAW_SNAKE_HEAD(w, 
                	head->coord_start.y, 
                 head->coord_start.x, 
 		ch);
@@ -537,7 +555,7 @@ bool snake_move(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 	/* Actually draw advancement of the tail.
            Really this step clears (undraws) the very last character of the snake
         */
-	mvwaddch(w, tail->coord_end.y, tail->coord_end.x, pset->ch_erase);
+	DRAW_CHAR(w, tail->coord_end.y, tail->coord_end.x, pset->ch_erase);
 	tail->length--;
 
 
@@ -598,10 +616,10 @@ P_SNAKE snake_init(WINDOW *w)
 	p_initseg->next = NULL;
 	p_initseg->length = DEFAULT_INIT_LENGTH;	
 	p_initseg-> dir = DIR_UP;
-	p_initseg->coord_start.x = w->_maxx;
-	p_initseg->coord_start.y = w->_maxy - DEFAULT_INIT_LENGTH + 1;
-	p_initseg->coord_end.x = w->_maxx;
-	p_initseg->coord_end.y = w->_maxy;
+	p_initseg->coord_start.x = w->_maxx - 1;
+	p_initseg->coord_start.y = w->_maxy - DEFAULT_INIT_LENGTH + 1 - 1;
+	p_initseg->coord_end.x = p_initseg->coord_start.x;
+	p_initseg->coord_end.y = p_initseg->coord_start.y;
 
 	/* Initialize snake */
 	psnake->seg_count = 1;
@@ -623,7 +641,7 @@ void snake_draw_init(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake)
 	//mvwprintw(w, 1,1, "y=%d x=%d maxy=%d maxx=%d", y, x, w->_maxy, w->_maxx);
 
 	for(i=0; i < pseg->length; i++, y++) {
-		mvwaddch(w, y, x, pset->ch_draw);
+		DRAW_CHAR(w, y, x, pset->ch_draw);
 	}
 }
 
@@ -632,24 +650,27 @@ WINDOW* ncurses_init()
 	WINDOW *w = NULL;
 	
 	w = initscr();
+	//w = derwin(w, w->_maxy-1, w->_maxx-1, w->_begx+1, w->_begy+1); 
 	keypad(stdscr, TRUE);
 	cbreak();
 	noecho();
 	nonl();
 	nodelay(w, true);
+	curs_set(0);
+
+	start_color();
+	init_pair(COLOR_PAIR_BOX, COLOR_CYAN, COLOR_BLACK);
+	init_pair(COLOR_PAIR_FOOD, COLOR_GREEN, COLOR_BLACK);
+	//init_pair(COLOR_PAIR_SNAKE, COLOR_RED, COLOR_WHITE);
+	init_pair(COLOR_PAIR_SNAKE, COLOR_WHITE, COLOR_RED);
 
 	/* Reserve space for key help */
-	//*w_game = *w;
-	//w = w_game;
-	//mvprintw(0,0,"w->_begy=%d\n",w->_begy);
-        //w->_begy = 1;	
-	//w->_begx = 1;
-	//w->_maxy--;
-	//`w->_maxx--;
+	attron(COLOR_PAIR(COLOR_PAIR_BOX));
+	box(w, '|','-');
+	attroff(COLOR_PAIR(COLOR_PAIR_BOX));
+	
 
-	//start_color();
-	//init_pair(1, COLOR_RED, COLOR_BLACK);
-	//attron(COLOR_PAIR(1));
+
 	
 	return w;
 }
