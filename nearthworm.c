@@ -13,7 +13,7 @@
 
 /* Macros / Defnitions
  ************************/
-#define DEFAULT_INIT_LENGTH 2
+#define DEFAULT_INIT_LENGTH 5
 #define DEFAULT_DRAW_CHAR  'S' 
 #define DEFAULT_ERASE_CHAR  ' ' 
 #define DEFAULT_TRACE_CHAR '.'
@@ -91,6 +91,7 @@ typedef struct settings {
 	bool portal;
 	bool cheat;
 	bool reverse;
+	bool mute;
 	chtype ch_draw;
 	chtype ch_erase;
 	chtype ch_food;
@@ -116,7 +117,7 @@ void snake_draw_init(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake);
 bool snake_move(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood);
 bool snake_steer(WINDOW_SNAKE *ws, P_SETTINGS pset,  P_SNAKE psnake, direction_t dir);
 bool place_food(WINDOW_SNAKE *ws , P_SETTINGS pset, P_FOOD pfood, P_SNAKE psnake);
-bool eat_food(P_SNAKE psnake, P_FOOD pfood);
+bool eat_food(P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood);
 bool is_self_collision(P_SETTINGS pset, P_SNAKE psnake);
 P_SSEG generate_new_head(direction_t newdir, P_COORD newcoord);
 void insert_new_head(P_SNAKE psnake, P_SSEG pnewhead);
@@ -132,7 +133,7 @@ void get_border_portal_coord(WINDOW_SNAKE *ws, P_SNAKE psnake,P_COORD pc);
 void reverse_snake(P_SNAKE psnake);
 direction_t reverse_direction(direction_t dir);
 
-void show_status(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake);
+void show_status(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake);
 
 /* Routines
  *************/
@@ -171,7 +172,7 @@ int main()
                  )) {
 		
 		if(settings.b_altered) {
-			show_status(w, &settings, psnake);
+			show_status(&ws, &settings, psnake);
 		}
 
 		if(food.b_eaten) {
@@ -268,6 +269,10 @@ bool process_char(int ch, WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 			break;
 		case 'r':
 			pset->reverse = pset->reverse ? false: true;
+			pset->b_altered = true;
+			break;
+		case 'm':
+			pset->mute = pset->mute ? false: true;
 			pset->b_altered = true;
 			break;
 		case ASCII_ARROW_LEFT:
@@ -436,7 +441,7 @@ void insert_new_head(P_SNAKE psnake, P_SSEG pnewhead)
 	psnake->seg_head = pnewhead;
 }
 
-bool eat_food(P_SNAKE psnake, P_FOOD pfood)
+bool eat_food(P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 {
 	P_COORD coord_head = &psnake->seg_head->coord_start;
 	P_COORD coord_food = &pfood->coord;
@@ -444,6 +449,9 @@ bool eat_food(P_SNAKE psnake, P_FOOD pfood)
 	if(coord_head->y == coord_food->y &&
 	   coord_head->x == coord_food->x) {
 		pfood->b_eaten = true;
+		if(!pset->mute) {
+			beep();
+		}
 		return true;
 	}
 
@@ -535,7 +543,9 @@ bool snake_move(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 		*/
 		if(!pset->portal) {
 	        	sleep(2);	
-			beep();
+			if(!pset->mute) {
+				beep();
+			}
 			return false;
 		}
 		/* If head hits border, and portal mode is ON
@@ -545,7 +555,9 @@ bool snake_move(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 		pnewhead = generate_new_head(head->dir, &newcoord); 
 		if( ! pnewhead) {
 	        	sleep(2);	
-			beep();
+			if(!pset->mute) {
+				beep();
+			}
 			return false;
 		}
 		insert_new_head(psnake, pnewhead);
@@ -567,7 +579,7 @@ bool snake_move(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 	head->length++;
 
 	/* Check if there was food at the new head position */
-	if(eat_food(psnake, pfood)) {
+	if(eat_food(pset, psnake, pfood)) {
 		/* If food was just eaten do not advance the tail
                    this will cause the snake to grow by one unit
 		*/
@@ -605,6 +617,7 @@ void init_settings(P_SETTINGS pset)
 	pset->portal = true;
 	pset->cheat = false;
 	pset->reverse = true;
+	pset->mute = true;
 	pset->ch_draw = DEFAULT_DRAW_CHAR;
 	pset->ch_erase = DEFAULT_ERASE_CHAR;
 	pset->ch_food = DEFAULT_FOOD_CHAR;
@@ -825,17 +838,27 @@ void reverse_snake(P_SNAKE psnake)
 	psnake->seg_tail = seg; 
 }
 
-void show_status(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake)
+void show_status(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 {
 	P_COORD pheadc = &psnake->seg_head->coord_start;
 	P_COORD ptailc = &psnake->seg_tail->coord_end;
-	move(w->_maxy-1, 1);
+
+	move(ws->_maxy+1, ws->_begx);
 	
 	//printw("head @x,y = %d,%d, tail @x,y = %d,%d ", 
 	//	pheadc->x, pheadc->y,
 	//	ptailc->x, ptailc->y);
 	
 	attron(COLOR_PAIR(COLOR_PAIR_STATUS));
+	if(pset->mute) {
+		addstr("un(m)ute");	
+	} 
+	else
+	{
+		addstr("(m)ute");	
+	}
+	addstr("   ");	
+
 	if(pset->pause) {
 		addstr("(p)lay");	
 	} 
@@ -865,5 +888,5 @@ void show_status(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake)
 
 	attroff(COLOR_PAIR(COLOR_PAIR_STATUS));
 	
-	//pset->b_altered = false;
+	pset->b_altered = false;
 }
