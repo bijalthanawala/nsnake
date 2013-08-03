@@ -13,7 +13,7 @@
 
 /* Macros / Defnitions
  ************************/
-#define DEFAULT_INIT_LENGTH 1
+#define DEFAULT_INIT_LENGTH 2
 #define DEFAULT_DRAW_CHAR  'S' 
 #define DEFAULT_ERASE_CHAR  ' ' 
 #define DEFAULT_TRACE_CHAR '.'
@@ -132,7 +132,7 @@ void get_border_portal_coord(WINDOW_SNAKE *ws, P_SNAKE psnake,P_COORD pc);
 void reverse_snake(P_SNAKE psnake);
 direction_t reverse_direction(direction_t dir);
 
-void show_status(WINDOW *w, P_SETTINGS pset);
+void show_status(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake);
 
 /* Routines
  *************/
@@ -161,6 +161,7 @@ int main()
 
 	/* Draw the initial snake */
 	snake_draw_init(&ws, &settings, psnake);
+	getch();
 
 	/* main loop */
 	food.b_eaten = true;
@@ -170,7 +171,7 @@ int main()
                  )) {
 		
 		if(settings.b_altered) {
-			show_status(w, &settings);
+			show_status(w, &settings, psnake);
 		}
 
 		if(food.b_eaten) {
@@ -219,7 +220,7 @@ bool place_food(WINDOW_SNAKE *ws , P_SETTINGS pset, P_FOOD pfood, P_SNAKE psnake
 
 	/* Now draw the food */
 	attron(COLOR_PAIR(COLOR_PAIR_FOOD));
-	DRAW_CHAR(w, pcoord->y, pcoord->x, pset->ch_food);
+	DRAW_CHAR(ws, pcoord->y, pcoord->x, pset->ch_food);
 	attroff(COLOR_PAIR(COLOR_PAIR_FOOD));
 }
 
@@ -559,7 +560,7 @@ bool snake_move(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 	}
 
 	/* Now draw the head of the snake at the new location */
-	DRAW_SNAKE_HEAD(w, 
+	DRAW_SNAKE_HEAD(ws, 
                	head->coord_start.y, 
                 head->coord_start.x, 
 		ch);
@@ -576,7 +577,7 @@ bool snake_move(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 	/* Actually draw advancement of the tail.
            Really this step clears (undraws) the very last character of the snake
         */
-	DRAW_CHAR(w, tail->coord_end.y, tail->coord_end.x, pset->ch_erase);
+	DRAW_CHAR(ws, tail->coord_end.y, tail->coord_end.x, pset->ch_erase);
 	tail->length--;
 
 
@@ -642,7 +643,7 @@ P_SNAKE snake_init(WINDOW_SNAKE *ws)
 	p_initseg->coord_start.x = ws->_maxx;
 	p_initseg->coord_start.y = ws->_maxy - DEFAULT_INIT_LENGTH + 1;
 	p_initseg->coord_end.x = p_initseg->coord_start.x;
-	p_initseg->coord_end.y = p_initseg->coord_start.y;
+	p_initseg->coord_end.y = ws->_maxy;
 
 	/* Initialize snake */
 	psnake->seg_count = 1;
@@ -661,10 +662,8 @@ void snake_draw_init(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 	NCURSES_SIZE_T y = pseg->coord_start.y;
 	NCURSES_SIZE_T x = pseg->coord_start.x;
 
-	//mvwprintw(w, 1,1, "y=%d x=%d maxy=%d maxx=%d", y, x, w->_maxy, w->_maxx);
-
 	for(i=0; i < pseg->length; i++, y++) {
-		DRAW_CHAR(ws, y, x, pset->ch_draw);
+		DRAW_SNAKE_HEAD(ws, y, x, pset->ch_draw);
 	}
 }
 
@@ -677,6 +676,7 @@ WINDOW* ncurses_init(P_WINDOW_SNAKE p_ws)
 	cbreak();
 	noecho();
 	nonl();
+	scrollok(w, false);
 	nodelay(w, true);
 	curs_set(0);
 
@@ -825,14 +825,19 @@ void reverse_snake(P_SNAKE psnake)
 	psnake->seg_tail = seg; 
 }
 
-void show_status(WINDOW *w, P_SETTINGS pset)
+void show_status(WINDOW *w, P_SETTINGS pset, P_SNAKE psnake)
 {
+	P_COORD pheadc = &psnake->seg_head->coord_start;
+	P_COORD ptailc = &psnake->seg_tail->coord_end;
 	move(w->_maxy-1, 1);
+	
+	//printw("head @x,y = %d,%d, tail @x,y = %d,%d ", 
+	//	pheadc->x, pheadc->y,
+	//	ptailc->x, ptailc->y);
+	
 	attron(COLOR_PAIR(COLOR_PAIR_STATUS));
 	if(pset->pause) {
-		attron(ATTR_STATUS);
 		addstr("(p)lay");	
-		if(pset->pause) attroff(ATTR_STATUS);
 	} 
 	else
 	{
@@ -856,8 +861,9 @@ void show_status(WINDOW *w, P_SETTINGS pset)
 	addstr("   ");	
 
 	addstr("e(x)it");	
+	addstr("   ");	
 
 	attroff(COLOR_PAIR(COLOR_PAIR_STATUS));
 	
-	pset->b_altered = false;
+	//pset->b_altered = false;
 }
