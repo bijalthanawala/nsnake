@@ -19,12 +19,6 @@
 #define DEFAULT_TRACE_CHAR '.'
 #define DEFAULT_FOOD_CHAR '@' 
 
-#define ASCII_ESC	  27
-#define ASCII_ARROW_UP    259
-#define ASCII_ARROW_DN    258
-#define ASCII_ARROW_LEFT  260
-#define ASCII_ARROW_RIGHT 261
-
 #define DEFAULT_DELAY (ONE_MILLI_SECOND * 100)
 #define MIN_THRESHOLD_DELAY ( ONE_MILLI_SECOND * 20 )
 #define ONE_MILLI_SECOND (1000)
@@ -54,7 +48,11 @@
 		DIR_LEFT  = 0xA000,
  		DIR_RIGHT = 0xA002,
  		DIR_UP    = 0xA004,
- 		DIR_DOWN  = 0xA006
+ 		DIR_DOWN  = 0xA006,
+		DIR_UP_LEFT    = 0xA008,
+		DIR_UP_RIGHT   = 0xA00a,
+		DIR_DOWN_LEFT  = 0xA00c,
+		DIR_DOWN_RIGHT = 0xA00e
 	} direction_t;
 
 /* Structures
@@ -135,6 +133,8 @@ direction_t reverse_direction(direction_t dir);
 
 void show_status(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake);
 
+inline NCURSES_SIZE_T y2graph(WINDOW_SNAKE *ws, NCURSES_SIZE_T ysnake);
+
 /* Routines
  *************/
 int main()
@@ -166,10 +166,7 @@ int main()
 
 	/* main loop */
 	food.b_eaten = true;
-	while ( !(ch == 'x' || 
-                  ch == 'q' ||
-                  ch == ASCII_ESC 
-                 )) {
+	while ( !(ch == 'x')) {
 		
 		if(settings.b_altered) {
 			show_status(&ws, &settings, psnake);
@@ -250,7 +247,7 @@ bool process_char(int ch, WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 			if(pset->b_show_segcount) 
 				pset->b_show_length = false;
 			break;
-		case 'l':
+		case 'g':
 			pset->b_show_length = pset->b_show_length ? false : true; 
 			if(pset->b_show_length) 
 				pset->b_show_segcount = false;
@@ -267,7 +264,7 @@ bool process_char(int ch, WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 			pset->cheat = pset->cheat ? false: true;
 			pset->b_altered = true;
 			break;
-		case 'r':
+		case 'v':
 			pset->reverse = pset->reverse ? false: true;
 			pset->b_altered = true;
 			break;
@@ -275,17 +272,33 @@ bool process_char(int ch, WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 			pset->mute = pset->mute ? false: true;
 			pset->b_altered = true;
 			break;
-		case ASCII_ARROW_LEFT:
+		case 'l':
+		case KEY_LEFT:
 			snake_steer(ws, pset, psnake, DIR_LEFT);
 			break;
-		case ASCII_ARROW_RIGHT:
+		case 'r':
+		case KEY_RIGHT:
 			snake_steer(ws, pset, psnake, DIR_RIGHT);
 			break;
-		case ASCII_ARROW_UP:
+		case 'u':
+		case KEY_UP:
 			snake_steer(ws, pset, psnake, DIR_UP);
 			break;
-		case ASCII_ARROW_DN:
+		case 'd':
+		case KEY_DOWN:
 			snake_steer(ws, pset, psnake, DIR_DOWN);
+			break;
+		case 'q':
+			snake_steer(ws, pset, psnake, DIR_UP_LEFT);
+			break;
+		case 'z':
+			snake_steer(ws, pset, psnake, DIR_DOWN_LEFT);
+			break;
+		case '\\':
+			snake_steer(ws, pset, psnake, DIR_UP_RIGHT);
+			break;
+		case '/':
+			snake_steer(ws, pset, psnake, DIR_DOWN_RIGHT);
 			break;
 	}
 }
@@ -303,6 +316,22 @@ bool seg_update_coord(direction_t dir, P_COORD pcoord)
 			pcoord->y--;
 			break;
 		case DIR_DOWN:
+			pcoord->y++;
+			break;
+		case DIR_UP_LEFT:
+			pcoord->x--;
+			pcoord->y--;
+			break;
+		case DIR_UP_RIGHT:
+			pcoord->x++;
+			pcoord->y--;
+			break;
+		case DIR_DOWN_LEFT:
+			pcoord->x--;
+			pcoord->y++;
+			break;
+		case DIR_DOWN_RIGHT:
+			pcoord->x++;
 			pcoord->y++;
 			break;
 	}
@@ -333,57 +362,24 @@ bool is_border(WINDOW_SNAKE *ws, P_SNAKE psnake)
 	return true;
 }
 
-bool snake_steer(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, direction_t dir)
+bool snake_steer(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, direction_t new_dir)
 {
 	P_SSEG pnewhead = NULL;
 	P_SSEG head = psnake->seg_head;
-	bool dir_handled = false;
+	direction_t curr_dir = head->dir; 
 
-	if( psnake->seg_head->dir == dir ) {
+	if( curr_dir == new_dir ) {
 		return true;
 	}
 	
-	switch(dir) 
-	{
-	case DIR_UP:
-		if(psnake->seg_head->dir == DIR_DOWN) {
-			if( pset->reverse) {
-				reverse_snake(psnake);	
-			}
-			dir_handled = true;
+	if(new_dir == reverse_direction(curr_dir)) {
+		if( pset->reverse) {
+			reverse_snake(psnake);	
 		}
-		break;
-	case DIR_DOWN:
-		if(psnake->seg_head->dir == DIR_UP) {
-			if( pset->reverse) {
-				reverse_snake(psnake);	
-			}
-			dir_handled = true;
-		}
-		break;
-	case DIR_LEFT:
-		if(psnake->seg_head->dir == DIR_RIGHT) {
-			if( pset->reverse) {
-				reverse_snake(psnake);	
-			}
-			dir_handled = true;
-		}
-		break;
-	case DIR_RIGHT:
-		if(psnake->seg_head->dir == DIR_LEFT) {
-			if( pset->reverse) {
-				reverse_snake(psnake);	
-			}
-			dir_handled = true;
-		}
-		break;
-	}
-	if(dir_handled) {
 		return true;
 	}
 	
-
-	pnewhead = generate_new_head(dir, &head->coord_start);
+	pnewhead = generate_new_head(new_dir, &head->coord_start);
 	if( ! pnewhead) {
 		return false;
 	}
@@ -502,6 +498,7 @@ void get_border_portal_coord(WINDOW_SNAKE *ws, P_SNAKE psnake,P_COORD pc)
 	P_SSEG head = psnake->seg_head;
 	direction_t dir = head->dir;
 	P_COORD phead_coord = &head->coord_start;
+	NCURSES_SIZE_T x, y, a, b;
 
 	switch(dir) {
 		case DIR_UP:
@@ -520,6 +517,97 @@ void get_border_portal_coord(WINDOW_SNAKE *ws, P_SNAKE psnake,P_COORD pc)
 			pc->y = phead_coord->y;
 			pc->x = ws->_begx;
 			break;	
+		case DIR_UP_LEFT:
+			//(y-b) = m(x-a), where,
+			// m=-1, a=phead_coord->x, b=phead_coord->y
+			// so, solve for x, when y=ws->_maxy;
+			// Rearranging eq, we get
+			// y - b = -x + a
+			// x = b - y + a;
+			a = phead_coord->x;
+			b = y2graph(ws, phead_coord->y); 
+			y = y2graph(ws, ws->_maxy);
+			pc->x = b - y + a;
+			pc->y = ws->_maxy;
+			if(pc->x > ws->_maxx) {
+				//if x > maxx then solve original again,
+				//this time for y, when x = _maxx
+				// which means, 
+				// x = b - y + a, is now
+				// y = b + a - x		
+				x = ws->_maxx;
+				pc->y = y2graph(ws, (b + a - x));
+				pc->x = x;
+			}
+			break;
+		case DIR_DOWN_RIGHT:
+			//(y-b) = m(x-a), where,
+			// m=-1, a=phead_coord->x, b=phead_coord->y
+			// so, solve for x, when y=ws->_begy;
+			// Rearranging eq, we get
+			// y - b = -x + a
+			// x = b - y + a;
+			a = phead_coord->x;
+			b = y2graph(ws, phead_coord->y); 
+			y = y2graph(ws, ws->_begy);
+			pc->x = b - y + a;
+			pc->y = ws->_begy;
+			if(pc->x < ws->_begx) {
+				//if x < begx then solve original again,
+				//this time for y, when x = _begx
+				// which means, 
+				// x = b - y + a, is now
+				// y = b + a - x		
+				x = ws->_begx;
+				pc->y = y2graph(ws, (b + a - x));
+				pc->x = x;
+			}
+			break;
+		
+		case DIR_UP_RIGHT:
+			//(y-b) = m(x-a), where,
+			// m=1, a=phead_coord->x, b=phead_coord->y
+			// so, solve for x, where y=ws->_maxy;
+			// Rearranging eq, we get
+			// x = y - b + a;
+			a = phead_coord->x;
+			b = y2graph(ws, phead_coord->y); 
+			y = y2graph(ws, ws->_maxy);
+			pc->x = y - b + a;
+			pc->y = ws->_maxy;
+			if(pc-> x < ws->_begx) {
+				//if x < begx then solve original again,
+				//this time for y, when x = _begx
+				// which means, 
+				// x = y - b + a, is now
+				// y = x + b - a		
+				x = ws->_begx;
+				pc->y = y2graph(ws, (x + b - a));
+				pc->x = x;
+			}
+			break;
+		case DIR_DOWN_LEFT:
+			//(y-b) = m(x-a), where,
+			// m=1, a=phead_coord->x, b=phead_coord->y
+			// so, solve for x, where y=ws->_begy;
+			// Rearranging eq, we get
+			// x = y - b + a;
+			a = phead_coord->x;
+			b = y2graph(ws, phead_coord->y); 
+			y = y2graph(ws, ws->_begy);
+			pc->x = y - b + a;
+			pc->y = ws->_begy;
+			if(pc-> x > ws->_maxx) {
+				//if x > maxx then solve original again,
+				//this time for y, when x = _maxx
+				// which means, 
+				// x = y - b + a, is now
+				// y = x + b - a		
+				x = ws->_maxx;
+				pc->y = y2graph(ws, (x + b - a));
+				pc->x = x;
+			break;
+		}
 	}
 }
 
@@ -733,7 +821,7 @@ void rank_coord(P_SSEG pseg, P_COORD *ppc_small, P_COORD *ppc_large)
 		}
 		else {
 			//At this point start.x is either < or = end.x
-			//If it is equal then, both - the start and the end cord 
+			//If it is equal then, both - the start and the end cord -
 			//are exactly the same	
 			*ppc_large = &pseg->coord_end;	
 			*ppc_small = &pseg->coord_start;	
@@ -770,6 +858,11 @@ bool is_coord_on_seg(P_COORD pc_inq, P_SSEG pseg)
 			return false;
 		}
 	} 	
+
+	if(pseg->dir == DIR_UP_LEFT || pseg->dir == DIR_UP_RIGHT ||
+	   pseg->dir == DIR_DOWN_LEFT || pseg->dir == DIR_DOWN_RIGHT) {
+		return false;
+	}
 
 	//should never reach here
 	printf("is_cord_on_page: hit no logic's land");
@@ -808,6 +901,14 @@ direction_t reverse_direction(direction_t dir)
 			return DIR_DOWN;
 		case DIR_DOWN:
 			return DIR_UP;
+		case DIR_UP_LEFT:
+			return DIR_DOWN_RIGHT;
+		case DIR_UP_RIGHT:
+			return DIR_DOWN_LEFT;
+		case DIR_DOWN_LEFT:
+			return DIR_UP_RIGHT;
+		case DIR_DOWN_RIGHT:
+			return DIR_UP_LEFT;
 	}
 
 	//Should never reach here !
@@ -845,10 +946,14 @@ void show_status(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 
 	move(ws->_maxy+1, ws->_begx);
 	
-	//printw("head @x,y = %d,%d, tail @x,y = %d,%d ", 
-	//	pheadc->x, pheadc->y,
-	//	ptailc->x, ptailc->y);
-	
+	/*
+	printw("head-len=%d, seg=%d, head @x,y = %d,%d, tail @x,y = %d,%d ", 
+		psnake->seg_head->length,
+		psnake->seg_count,
+		pheadc->x, pheadc->y,
+		ptailc->x, ptailc->y);
+	*/
+
 	attron(COLOR_PAIR(COLOR_PAIR_STATUS));
 	if(pset->mute) {
 		addstr("un(m)ute");	
@@ -874,7 +979,7 @@ void show_status(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 	addstr("   ");	
 
 	if(pset->reverse) attron(ATTR_STATUS);
-	addstr("(r)everse");	
+	addstr("re(v)erse");	
 	if(pset->reverse) attroff(ATTR_STATUS);
 	addstr("   ");	
 
@@ -890,3 +995,9 @@ void show_status(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 	
 	pset->b_altered = false;
 }
+
+inline NCURSES_SIZE_T y2graph(WINDOW_SNAKE *ws, NCURSES_SIZE_T ysnake)
+{
+	return (ws->_maxy - (ysnake));	
+}
+
