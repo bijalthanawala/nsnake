@@ -33,7 +33,7 @@
 
 #define STATUS_ATTR	  	(WA_BOLD | WA_UNDERLINE)
 #define STATUS_SPEED_AVAIL	(WA_BOLD)
-#define STATUS_DIR	  	(WA_BOLD | WA_BLINK)
+#define STATUS_BOLD_BLINK  	(WA_BOLD | WA_BLINK)
 
 //#define DRAW_CHAR(w, y, x, ch) mvwaddch(w, y, x, ch)
 #define DRAW_CHAR(w, y, x, ch) mvaddch(y, x, ch)
@@ -81,6 +81,10 @@ typedef struct snake_segment {
 typedef struct snake {
 	int seg_count;
 	int score;
+	bool term_wall_collision;
+	bool term_self_collision;
+	bool term_mem_alloc_fail;
+	bool term_user_choice;
 	P_SSEG seg_head;
 	P_SSEG seg_tail; 
 } SNAKE , *P_SNAKE;
@@ -165,7 +169,7 @@ int main()
 
 	/* Draw the initial snake */
 	snake_draw_init(&ws, &settings, psnake);
-	getch();
+	wrefresh(w);
 
 	/* main loop */
 	food.b_eaten = true;
@@ -187,15 +191,28 @@ int main()
 			}
 		}
 
-		ch = tolower(getch());
+		ch = tolower(wgetch(w));
 		process_char(ch, &ws, &settings, psnake);
+		if(ch == 'x')
+			psnake->term_user_choice = true;
 	}
+
+	show_status(&ws, &settings, psnake);
+	wrefresh(w);
+	if(settings.sound) {
+		beep();
+	}
+
+	sleep(5);
+	
 	
 	/* Uninitialize ncurses library */
 	ncurses_uninit();
 
 	/* Free all snake segments and snake structure */
 	free_snake(psnake);
+
+	printf("Hope you enjoyed...\n");
 	return 0;
 }
 
@@ -650,10 +667,7 @@ bool snake_move(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
  		   then quit the game
 		*/
 		if(!pset->portal) {
-	        	sleep(2);	
-			if(pset->sound) {
-				beep();
-			}
+			psnake->term_wall_collision = true;
 			return false;
 		}
 
@@ -666,10 +680,7 @@ bool snake_move(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 		get_border_portal_coord(ws, psnake, &newcoord);
 		pnewhead = generate_new_head(head->dir, &newcoord); 
 		if( ! pnewhead) {
-	        	sleep(2);	
-			if(pset->sound) {
-				beep();
-			}
+			psnake->term_mem_alloc_fail = true;
 			return false;
 		}
 		insert_new_head(psnake, pnewhead);
@@ -678,8 +689,7 @@ bool snake_move(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 
 	/* Check if snake hs collided with itself */ 
 	if( is_self_collision(pset, psnake)) {
-	        sleep(2);	
-		beep();
+		psnake->term_self_collision = true;
 		return false;
 	}
 
@@ -773,6 +783,10 @@ P_SNAKE snake_init(WINDOW_SNAKE *ws)
 	/* Initialize snake */
 	psnake->seg_count = 1;
 	psnake->score = 0;
+	psnake->term_wall_collision = false;
+	psnake->term_self_collision = false;
+	psnake->term_mem_alloc_fail = false;
+	psnake->term_user_choice = false;
 
 	/* Insert initial segment into the snake */
 	psnake->seg_head = p_initseg;
@@ -1005,9 +1019,9 @@ void show_status(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 			break;
 	}
 	snprintf(strbuff,sizeof(strbuff),"%c",dir_char);
-	attron(COLOR_PAIR(COLOR_PAIR_RED_ON_BLACK) | STATUS_DIR);
+	attron(COLOR_PAIR(COLOR_PAIR_RED_ON_BLACK) | STATUS_BOLD_BLINK);
 	addstr(strbuff);
-	attroff(COLOR_PAIR(COLOR_PAIR_RED_ON_BLACK) | STATUS_DIR);
+	attroff(COLOR_PAIR(COLOR_PAIR_RED_ON_BLACK) | STATUS_BOLD_BLINK);
 	//addstr("   ");	
 	
 	//addstr("speed");
@@ -1069,6 +1083,30 @@ void show_status(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 
 	addstr("e(x)it");	
 	addstr("   ");	
+
+	if(psnake->term_wall_collision) {
+		attron(COLOR_PAIR(COLOR_PAIR_RED_ON_BLACK) | STATUS_BOLD_BLINK);
+		addstr("**COLLIDED WITH WALL**");
+		attroff(COLOR_PAIR(COLOR_PAIR_RED_ON_BLACK) | STATUS_BOLD_BLINK);
+	}
+
+	if(psnake->term_self_collision) {
+		attron(COLOR_PAIR(COLOR_PAIR_RED_ON_BLACK) | STATUS_BOLD_BLINK);
+		addstr("**COLLIDED WITH SELF**");
+		attroff(COLOR_PAIR(COLOR_PAIR_RED_ON_BLACK) | STATUS_BOLD_BLINK);
+	}
+
+	if(psnake->term_mem_alloc_fail) {
+		attron(COLOR_PAIR(COLOR_PAIR_RED_ON_BLACK) | STATUS_BOLD_BLINK);
+		addstr("**MEMORY ALLOCATION FAILURE**");
+		attroff(COLOR_PAIR(COLOR_PAIR_RED_ON_BLACK) | STATUS_BOLD_BLINK);
+	}
+
+	if(psnake->term_user_choice) {
+		attron(COLOR_PAIR(COLOR_PAIR_RED_ON_BLACK) | STATUS_BOLD_BLINK);
+		addstr("**BYE**");
+		attroff(COLOR_PAIR(COLOR_PAIR_RED_ON_BLACK) | STATUS_BOLD_BLINK);
+	}
 
 	attroff(COLOR_PAIR(COLOR_PAIR_STATUS));
 	
