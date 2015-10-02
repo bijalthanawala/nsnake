@@ -1,17 +1,17 @@
-nearthworm: nearthworm.o
-	gcc -o $@ -lncurses nearthworm.o
+nsnake: nsnake.o
+	gcc -o $@ -lncurses nsnake.o
 
-nearthworm-dbg: nearthworm-dbg.o
-	gcc -o $@ -lncurses nearthworm.o
+nsnake-dbg: nsnake-dbg.o
+	gcc -o $@ -lncurses nsnake.o
 
-nearthworm.o: nearthworm.c
-	gcc -c nearthworm.c
+nsnake.o: nsnake.c
+	gcc -c nsnake.c
 
-nearthworm-dbg.o: nearthworm.c
-	gcc -g -c nearthworm.c
+nsnake-dbg.o: nsnake.c
+	gcc -g -c nsnake.c
 
-all: nearthworm
+all: nsnake
 
 clean:
-	if [ -e nearthworm.o ] ; then rm nearthworm.o; fi
-	if [ -e nearthworm ] ; then rm nearthworm; fi
+	if [ -e nsnake.o ] ; then rm nsnake.o; fi
+	if [ -e nsnake ] ; then rm nsnake; fi
