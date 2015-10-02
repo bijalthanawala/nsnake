@@ -15,3 +15,4 @@ all: nsnake
 clean:
 	if [ -e nsnake.o ] ; then rm nsnake.o; fi
 	if [ -e nsnake ] ; then rm nsnake; fi
+	if [ -e nsnake-dbg ] ; then rm nsnake-dbg; fi
