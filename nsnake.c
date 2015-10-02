@@ -14,24 +14,25 @@
 /* Macros / Defnitions
  ************************/
 #define DEFAULT_INIT_LENGTH 5
-#define DEFAULT_DRAW_CHAR  'S' 
+#define DEFAULT_DRAW_CHAR  ' ' 
 #define DEFAULT_ERASE_CHAR  ' ' 
 #define DEFAULT_TRACE_CHAR '.'
 #define DEFAULT_FOOD_CHAR '@' 
 
-#define DEFAULT_DELAY (ONE_MILLI_SECOND * 100)
-#define MIN_THRESHOLD_DELAY ( ONE_MILLI_SECOND * 20 )
+#define MIN_SPEED	1
+#define MAX_SPEED	9
+#define DEFAULT_SPEED	5
 #define ONE_MILLI_SECOND (1000)
-
-#define SPEED_INC (-10) 
-#define SPEED_DEC (+10) 
+#define DELAY_DELTA ( ONE_MILLI_SECOND * 25 )
 
 #define COLOR_PAIR_BOX   	1
 #define COLOR_PAIR_FOOD 	2
 #define COLOR_PAIR_SNAKE	3
 #define COLOR_PAIR_STATUS	4
 
-#define ATTR_STATUS	(WA_BOLD | WA_UNDERLINE)
+#define STATUS_ATTR	  	(WA_BOLD | WA_UNDERLINE)
+#define STATUS_SPEED_AVAIL	(WA_BOLD)
+#define STATUS_DIR	  	(WA_BOLD | WA_BLINK)
 
 //#define DRAW_CHAR(w, y, x, ch) mvwaddch(w, y, x, ch)
 #define DRAW_CHAR(w, y, x, ch) mvaddch(y, x, ch)
@@ -84,7 +85,7 @@ typedef struct snake {
 
 typedef struct settings {
 	bool b_altered;
-	int delay;
+	int  speed;
 	bool pause;
 	bool portal;
 	bool cheat;
@@ -176,7 +177,7 @@ int main()
 			place_food(&ws, &settings, &food ,psnake);
 		}
 
-		usleep(settings.delay);
+		usleep((MAX_SPEED - settings.speed + 1) * DELAY_DELTA);
 
 		if(!settings.pause) {
 			if(!snake_move(&ws, &settings, psnake, &food)) {
@@ -227,31 +228,17 @@ bool process_char(int ch, WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 	switch(ch) 
 	{
 		case '-':	
-			pset->delay += SPEED_DEC;
-			pset->b_altered = true;
+			if ( (pset->speed - 1) >= MIN_SPEED) {
+				pset->speed--;
+				pset->b_altered = true;
+			}
 			break;	
 		case '+':
-			if ( (pset->delay + SPEED_INC) >= MIN_THRESHOLD_DELAY) {
-				pset->delay += SPEED_INC;
+			if ( (pset->speed + 1) <= MAX_SPEED ) {
+				pset->speed++;
+				pset->b_altered = true;
 			}
-			pset->b_altered = true;
 			break;	
-		case 't':
-			pset->ch_erase = (pset->ch_erase == DEFAULT_ERASE_CHAR) ? 
-                                           DEFAULT_TRACE_CHAR :
-				           DEFAULT_ERASE_CHAR;
-			pset->b_altered = true;
-			break;
-		case 's':
-			pset->b_show_segcount = pset->b_show_segcount ? false : true; 
-			if(pset->b_show_segcount) 
-				pset->b_show_length = false;
-			break;
-		case 'g':
-			pset->b_show_length = pset->b_show_length ? false : true; 
-			if(pset->b_show_length) 
-				pset->b_show_segcount = false;
-			break;
 		case 'p':
 			pset->pause = pset->pause ? false : true;
 			pset->b_altered = true;
@@ -275,31 +262,55 @@ bool process_char(int ch, WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 		case 'l':
 		case KEY_LEFT:
 			snake_steer(ws, pset, psnake, DIR_LEFT);
+			pset->b_altered = true;
 			break;
 		case 'r':
 		case KEY_RIGHT:
 			snake_steer(ws, pset, psnake, DIR_RIGHT);
+			pset->b_altered = true;
 			break;
 		case 'u':
 		case KEY_UP:
 			snake_steer(ws, pset, psnake, DIR_UP);
+			pset->b_altered = true;
 			break;
 		case 'd':
 		case KEY_DOWN:
 			snake_steer(ws, pset, psnake, DIR_DOWN);
+			pset->b_altered = true;
+			break;
+		case '\\':
+			snake_steer(ws, pset, psnake, DIR_UP_LEFT);
+			pset->b_altered = true;
 			break;
 		case 'q':
-			snake_steer(ws, pset, psnake, DIR_UP_LEFT);
+			snake_steer(ws, pset, psnake, DIR_DOWN_RIGHT);
+			pset->b_altered = true;
+			break;
+		case '/':
+			snake_steer(ws, pset, psnake, DIR_UP_RIGHT);
+			pset->b_altered = true;
 			break;
 		case 'z':
 			snake_steer(ws, pset, psnake, DIR_DOWN_LEFT);
 			break;
-		case '\\':
-			snake_steer(ws, pset, psnake, DIR_UP_RIGHT);
+		case 't':
+			pset->ch_erase = (pset->ch_erase == DEFAULT_ERASE_CHAR) ? 
+                                           DEFAULT_TRACE_CHAR :
+				           DEFAULT_ERASE_CHAR;
+			pset->b_altered = true;
 			break;
-		case '/':
-			snake_steer(ws, pset, psnake, DIR_DOWN_RIGHT);
+		case 's':
+			pset->b_show_segcount = pset->b_show_segcount ? false : true; 
+			if(pset->b_show_segcount) 
+				pset->b_show_length = false;
 			break;
+		case 'g':
+			pset->b_show_length = pset->b_show_length ? false : true; 
+			if(pset->b_show_length) 
+				pset->b_show_segcount = false;
+			break;
+		
 	}
 }
 
@@ -700,7 +711,7 @@ bool snake_move(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 
 void init_settings(P_SETTINGS pset) 
 {
-	pset->delay = DEFAULT_DELAY;
+	pset->speed = DEFAULT_SPEED;
 	pset->pause = false;
 	pset->portal = true;
 	pset->cheat = false;
@@ -943,6 +954,9 @@ void show_status(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 {
 	P_COORD pheadc = &psnake->seg_head->coord_start;
 	P_COORD ptailc = &psnake->seg_tail->coord_end;
+        char speed_str[100] ;
+	char dir_str[3];
+	char dir_char=0;
 
 	move(ws->_maxy+1, ws->_begx);
 	
@@ -955,6 +969,52 @@ void show_status(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 	*/
 
 	attron(COLOR_PAIR(COLOR_PAIR_STATUS));
+	switch(psnake->seg_head->dir) {
+		case DIR_UP:
+			dir_char = '^';
+			break;
+		case DIR_DOWN:
+			dir_char = 'v';
+			break;
+		case DIR_LEFT:
+			dir_char = '<';
+			break;
+		case DIR_RIGHT:
+			dir_char = '>';
+			break;
+		case DIR_UP_LEFT:
+		case DIR_DOWN_RIGHT:
+			dir_char = '\\';
+			break;
+		case DIR_UP_RIGHT:
+		case DIR_DOWN_LEFT:
+			dir_char = '/';
+			break;
+	}
+	snprintf(dir_str,sizeof(dir_str),"%c",dir_char);
+	attron(STATUS_DIR);
+	addstr(dir_str);
+	attroff(STATUS_DIR);
+	//addstr("   ");	
+	
+	//addstr("speed");
+	addstr("(");
+	if(pset->speed > MIN_SPEED)  
+		attron(STATUS_SPEED_AVAIL);
+	else
+		attroff(STATUS_SPEED_AVAIL);
+	addstr("-");
+	if(pset->speed < MAX_SPEED)
+		attron(STATUS_SPEED_AVAIL);
+	else
+		attroff(STATUS_SPEED_AVAIL);
+	addstr("+");
+	attroff(STATUS_SPEED_AVAIL);
+	addstr(")");
+	snprintf(speed_str, sizeof(speed_str), ": %d", pset->speed);
+        addstr(speed_str);
+	addstr("   ");	
+	
 	if(pset->mute) {
 		addstr("un(m)ute");	
 	} 
@@ -973,19 +1033,19 @@ void show_status(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 	}
 	addstr("   ");	
 
-	if(pset->portal) attron(ATTR_STATUS);
+	if(pset->portal) attron(STATUS_ATTR);
 	addstr("p(o)rtal");	
-	if(pset->portal) attroff(ATTR_STATUS);
+	if(pset->portal) attroff(STATUS_ATTR);
 	addstr("   ");	
 
-	if(pset->reverse) attron(ATTR_STATUS);
+	if(pset->reverse) attron(STATUS_ATTR);
 	addstr("re(v)erse");	
-	if(pset->reverse) attroff(ATTR_STATUS);
+	if(pset->reverse) attroff(STATUS_ATTR);
 	addstr("   ");	
 
-	if(pset->cheat) attron(ATTR_STATUS);
+	if(pset->cheat) attron(STATUS_ATTR);
 	addstr("(c)heat");	
-	if(pset->cheat) attroff(ATTR_STATUS);
+	if(pset->cheat) attroff(STATUS_ATTR);
 	addstr("   ");	
 
 	addstr("e(x)it");	

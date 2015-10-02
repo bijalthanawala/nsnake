@@ -2,7 +2,7 @@ nsnake: nsnake.o
 	gcc -o $@ -lncurses nsnake.o
 
 nsnake-dbg: nsnake-dbg.o
-	gcc -o $@ -lncurses nsnake.o
+	gcc -DDEBUG -o $@ -lncurses nsnake.o
 
 nsnake.o: nsnake.c
 	gcc -c nsnake.c
