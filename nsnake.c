@@ -13,7 +13,7 @@
 
 /* Macros / Defnitions
  ************************/
-#define DEFAULT_INIT_LENGTH 5
+#define DEFAULT_INIT_LENGTH 15
 #define DEFAULT_DRAW_CHAR  ' ' 
 #define DEFAULT_ERASE_CHAR  ' ' 
 #define DEFAULT_TRACE_CHAR '.'
@@ -132,7 +132,7 @@ bool is_coord_on_seg(P_COORD pc_inq, P_SSEG pseg);
 void get_border_portal_coord(WINDOW_SNAKE *ws, P_SNAKE psnake,P_COORD pc);
 
 void reverse_snake(P_SNAKE psnake);
-direction_t reverse_direction(direction_t dir);
+direction_t get_oppose_dir(direction_t dir);
 
 void show_status(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake);
 
@@ -355,6 +355,11 @@ bool seg_update_headxy(P_SSEG seg)
 	seg_update_coord(seg->dir, &seg->coord_start);
 }
 
+bool seg_unupdate_headxy(P_SSEG seg)
+{
+	seg_update_coord(get_oppose_dir(seg->dir), &seg->coord_start);
+}
+
 bool seg_update_tailxy(P_SSEG seg)
 {
 	seg_update_coord(seg->dir, &seg->coord_end);
@@ -385,7 +390,7 @@ bool snake_steer(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, direction_t 
 		return true;
 	}
 	
-	if(new_dir == reverse_direction(curr_dir)) {
+	if(new_dir == get_oppose_dir(curr_dir)) {
 		if( pset->reverse) {
 			reverse_snake(psnake);	
 		}
@@ -651,6 +656,10 @@ bool snake_move(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 			}
 			return false;
 		}
+
+		/* Unadvance head's x,y */
+		seg_unupdate_headxy(head);
+
 		/* If head hits border, and portal mode is ON
 		   then snake appear on the other side
 		*/
@@ -811,7 +820,7 @@ WINDOW* ncurses_init(P_WINDOW_SNAKE p_ws)
 	
 	p_ws->_begy = w->_begy+1;
 	p_ws->_begx = w->_begx+1;
-	p_ws->_maxy = w->_maxy-2;
+	p_ws->_maxy = w->_maxy-2;   //Accomdate Status-bar
 	p_ws->_maxx = w->_maxx-1;
 	
 	return w;
@@ -906,7 +915,7 @@ void free_snake(P_SNAKE psnake)
 	free(psnake);
 }
 
-direction_t reverse_direction(direction_t dir)
+direction_t get_oppose_dir(direction_t dir)
 {
 	switch(dir) {
 		case DIR_LEFT:
@@ -942,7 +951,7 @@ void reverse_snake(P_SNAKE psnake)
 		next = seg->next;
 		seg->next = seg->previous;
 		seg->previous = next;
-		seg->dir = reverse_direction(seg->dir);
+		seg->dir = get_oppose_dir(seg->dir);
 		coord_temp = seg->coord_start;
 		seg->coord_start = seg->coord_end;
 		seg->coord_end = coord_temp;
