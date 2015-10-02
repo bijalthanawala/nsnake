@@ -29,6 +29,7 @@
 #define COLOR_PAIR_FOOD 	2
 #define COLOR_PAIR_SNAKE	3
 #define COLOR_PAIR_STATUS	4
+#define COLOR_PAIR_RED_ON_BLACK	5
 
 #define STATUS_ATTR	  	(WA_BOLD | WA_UNDERLINE)
 #define STATUS_SPEED_AVAIL	(WA_BOLD)
@@ -79,6 +80,7 @@ typedef struct snake_segment {
 
 typedef struct snake {
 	int seg_count;
+	int score;
 	P_SSEG seg_head;
 	P_SSEG seg_tail; 
 } SNAKE , *P_SNAKE;
@@ -90,7 +92,7 @@ typedef struct settings {
 	bool portal;
 	bool cheat;
 	bool reverse;
-	bool mute;
+	bool sound;
 	chtype ch_draw;
 	chtype ch_erase;
 	chtype ch_food;
@@ -255,8 +257,8 @@ bool process_char(int ch, WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 			pset->reverse = pset->reverse ? false: true;
 			pset->b_altered = true;
 			break;
-		case 'm':
-			pset->mute = pset->mute ? false: true;
+		case 's':
+			pset->sound = pset->sound ? false: true;
 			pset->b_altered = true;
 			break;
 		case 'l':
@@ -300,12 +302,12 @@ bool process_char(int ch, WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 				           DEFAULT_ERASE_CHAR;
 			pset->b_altered = true;
 			break;
-		case 's':
+		case 'g':
 			pset->b_show_segcount = pset->b_show_segcount ? false : true; 
 			if(pset->b_show_segcount) 
 				pset->b_show_length = false;
 			break;
-		case 'g':
+		case '0':
 			pset->b_show_length = pset->b_show_length ? false : true; 
 			if(pset->b_show_length) 
 				pset->b_show_segcount = false;
@@ -456,7 +458,9 @@ bool eat_food(P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 	if(coord_head->y == coord_food->y &&
 	   coord_head->x == coord_food->x) {
 		pfood->b_eaten = true;
-		if(!pset->mute) {
+		psnake->score++;
+		pset->b_altered = true; 
+		if(pset->sound) {
 			beep();
 		}
 		return true;
@@ -642,7 +646,7 @@ bool snake_move(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 		*/
 		if(!pset->portal) {
 	        	sleep(2);	
-			if(!pset->mute) {
+			if(pset->sound) {
 				beep();
 			}
 			return false;
@@ -654,7 +658,7 @@ bool snake_move(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake, P_FOOD pfood)
 		pnewhead = generate_new_head(head->dir, &newcoord); 
 		if( ! pnewhead) {
 	        	sleep(2);	
-			if(!pset->mute) {
+			if(pset->sound) {
 				beep();
 			}
 			return false;
@@ -716,7 +720,7 @@ void init_settings(P_SETTINGS pset)
 	pset->portal = true;
 	pset->cheat = false;
 	pset->reverse = true;
-	pset->mute = true;
+	pset->sound = false;
 	pset->ch_draw = DEFAULT_DRAW_CHAR;
 	pset->ch_erase = DEFAULT_ERASE_CHAR;
 	pset->ch_food = DEFAULT_FOOD_CHAR;
@@ -759,6 +763,7 @@ P_SNAKE snake_init(WINDOW_SNAKE *ws)
 
 	/* Initialize snake */
 	psnake->seg_count = 1;
+	psnake->score = 0;
 
 	/* Insert initial segment into the snake */
 	psnake->seg_head = p_initseg;
@@ -795,8 +800,8 @@ WINDOW* ncurses_init(P_WINDOW_SNAKE p_ws)
 	start_color();
 	init_pair(COLOR_PAIR_BOX, COLOR_CYAN, COLOR_BLACK);
 	init_pair(COLOR_PAIR_FOOD, COLOR_GREEN, COLOR_BLACK);
-	//init_pair(COLOR_PAIR_SNAKE, COLOR_RED, COLOR_WHITE);
 	init_pair(COLOR_PAIR_SNAKE, COLOR_WHITE, COLOR_RED);
+	init_pair(COLOR_PAIR_RED_ON_BLACK, COLOR_RED, COLOR_BLACK);
 	init_pair(COLOR_PAIR_STATUS, COLOR_WHITE, COLOR_BLACK);
 
 	/* Reserve space for key help */
@@ -954,8 +959,7 @@ void show_status(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 {
 	P_COORD pheadc = &psnake->seg_head->coord_start;
 	P_COORD ptailc = &psnake->seg_tail->coord_end;
-        char speed_str[100] ;
-	char dir_str[3];
+        char strbuff[100] ;
 	char dir_char=0;
 
 	move(ws->_maxy+1, ws->_begx);
@@ -991,13 +995,15 @@ void show_status(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 			dir_char = '/';
 			break;
 	}
-	snprintf(dir_str,sizeof(dir_str),"%c",dir_char);
-	attron(STATUS_DIR);
-	addstr(dir_str);
-	attroff(STATUS_DIR);
+	snprintf(strbuff,sizeof(strbuff),"%c",dir_char);
+	attron(COLOR_PAIR(COLOR_PAIR_RED_ON_BLACK) | STATUS_DIR);
+	addstr(strbuff);
+	attroff(COLOR_PAIR(COLOR_PAIR_RED_ON_BLACK) | STATUS_DIR);
 	//addstr("   ");	
 	
 	//addstr("speed");
+	snprintf(strbuff, sizeof(strbuff), "%d", pset->speed);
+        addstr(strbuff);
 	addstr("(");
 	if(pset->speed > MIN_SPEED)  
 		attron(STATUS_SPEED_AVAIL);
@@ -1011,21 +1017,25 @@ void show_status(WINDOW_SNAKE *ws, P_SETTINGS pset, P_SNAKE psnake)
 	addstr("+");
 	attroff(STATUS_SPEED_AVAIL);
 	addstr(")");
-	snprintf(speed_str, sizeof(speed_str), ": %d", pset->speed);
-        addstr(speed_str);
+	addstr("   ");	
+
+	snprintf(strbuff, sizeof(strbuff), "%05d",psnake->score);
+	attron(COLOR_PAIR(COLOR_PAIR_FOOD));
+	addstr("@");
+	attroff(COLOR_PAIR(COLOR_PAIR_FOOD));
+	addstr(strbuff);
 	addstr("   ");	
 	
-	if(pset->mute) {
-		addstr("un(m)ute");	
-	} 
-	else
-	{
-		addstr("(m)ute");	
-	}
+
+	if(pset->sound) attron(STATUS_ATTR);
+	addstr("(s)ound");	
+	if(pset->sound) attroff(STATUS_ATTR);
 	addstr("   ");	
 
 	if(pset->pause) {
-		addstr("(p)lay");	
+		attron(STATUS_ATTR);
+		addstr("un(p)ause");	
+		attroff(STATUS_ATTR);
 	} 
 	else
 	{
