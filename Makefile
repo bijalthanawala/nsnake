@@ -1,8 +1,8 @@
 nsnake: nsnake.o
-	gcc -o $@ -lncurses nsnake.o
+	gcc nsnake.o -lncurses -o $@
 
 nsnake-dbg: nsnake-dbg.o
-	gcc -DDEBUG -o $@ -lncurses nsnake.o
+	gcc nsnake.o -DDEBUG -lncurses -o $@
 
 nsnake.o: nsnake.c
 	gcc -c nsnake.c
